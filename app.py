@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from google import genai
 
-# Initialize Google GenAI client (needs GOOGLE_API_KEY in environment)
+# Initialize Google GenAI client (set GOOGLE_API_KEY in environment)
 client = genai.Client()
 
 def safe_rerun():
@@ -32,17 +32,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state keys
-for key in ['logged_in','user_email','users','stocks','doctors','chat_history','_rerun_flag']:
+# Initialize keys for session state storage
+for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
     if key not in st.session_state:
-        if key in ['logged_in','_rerun_flag']:
-            st.session_state[key] = False
-        elif key == 'chat_history':
-            st.session_state[key] = []
-        else:
-            st.session_state[key] = []
+        st.session_state[key] = False if key in ['logged_in', '_rerun_flag'] else ([] if key != 'chat_history' else [])
 
-# Helpers for JSON data
 def load_json(filepath):
     try:
         with open(filepath, "r") as f:
@@ -67,13 +61,12 @@ def save_data():
 
 load_all_data()
 
-# Authentication Functions
 def register_user(email, password, business_name):
     email = email.strip().lower()
     password = password.strip()
     business_name = business_name.strip()
     if any(u['email'] == email for u in st.session_state.users):
-        st.warning("User already registered.")
+        st.warning("User with this email already registered.")
         return False
     st.session_state.users.append({
         "email": email,
@@ -94,7 +87,6 @@ def login_user(email, password):
             return True
     return False
 
-# Chat generation using official google-genai Client
 def generate_chat_response(prompt):
     try:
         response = client.chat.completions.create(
@@ -105,8 +97,6 @@ def generate_chat_response(prompt):
     except Exception as e:
         st.error(f"AI chat generation failed: {e}")
         return "Sorry, I couldn't process that."
-
-# UI Functions
 
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -168,9 +158,9 @@ def show_stock_management():
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
-            required_cols = {'name','batch_no','received','expired','paid','units','sold','sold_amount','prescribed_by'}
+            required_cols = {'name', 'batch_no', 'received', 'expired', 'paid', 'units', 'sold', 'sold_amount', 'prescribed_by'}
             if not required_cols.issubset(df.columns.str.lower()):
-                st.error(f"Excel missing columns: {required_cols}")
+                st.error(f"Missing columns: {required_cols}")
             else:
                 df.columns = df.columns.str.lower()
                 new_stocks = df.to_dict(orient='records')
@@ -218,9 +208,9 @@ def show_doctor_tracking():
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
-            required_cols = {'name','clinic','phone','total_sales'}
+            required_cols = {'name', 'clinic', 'phone', 'total_sales'}
             if not required_cols.issubset(df.columns.str.lower()):
-                st.error(f"Excel missing columns: {required_cols}")
+                st.error(f"Missing columns: {required_cols}")
             else:
                 df.columns = df.columns.str.lower()
                 new_docs = df.to_dict(orient='records')
@@ -257,19 +247,15 @@ def show_dashboard():
         st.markdown("### 💊 PharmaBiz Pro")
         st.markdown(f"User: {st.session_state.user_email}")
         st.markdown("---")
-        menu = st.radio(
-            "Navigation",
-            [
-                "📊 Dashboard",
-                "📦 Stock Management",
-                "👨‍⚕️ Doctor Tracking",
-                "📈 Analytics",
-                "🚨 Alerts",
-                "🎨 AI Generator",
-                "📄 Reports"
-            ],
-            index=0,
-        )
+        menu = st.radio("Navigation", [
+            "📊 Dashboard",
+            "📦 Stock Management",
+            "👨‍⚕️ Doctor Tracking",
+            "📈 Analytics",
+            "🚨 Alerts",
+            "🎨 AI Generator",
+            "📄 Reports"
+        ], index=0)
         st.markdown("---")
         if st.button("Logout"):
             st.session_state.logged_in = False
