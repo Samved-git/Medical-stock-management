@@ -9,32 +9,18 @@ import io
 import base64
 import google.generativeai as genai
 
-# Helper to force app rerun (automatic page refresh)
-def rerun():
-    st.experimental_rerun()
-
-# Page config & styling
-st.set_page_config(
-    page_title="PharmaBiz Pro",
-    page_icon="💊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Page Config & CSS
+st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
     .main {background-color: #f8fafc;}
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        height: 3em;
-        font-weight: 600;
-    }
+    .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
     h1 {color: #1e293b;}
     .stAlert {border-radius: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session-state entries
+# Initialize session state vars if missing
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors']:
     if key not in st.session_state:
         if key == 'logged_in':
@@ -42,7 +28,7 @@ for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors']:
         else:
             st.session_state[key] = []
 
-# Data persistence helpers
+# Load and Save Helpers
 def load_data():
     os.makedirs('data', exist_ok=True)
     try:
@@ -75,12 +61,11 @@ def save_data():
 
 load_data()
 
-# Authentication functions
+# Authentication
 def register_user(email, password, business_name):
     user = {'email': email, 'password': password, 'business_name': business_name, 'created_at': datetime.now().isoformat()}
     st.session_state.users.append(user)
     save_data()
-    return True
 
 def login_user(email, password):
     for user in st.session_state.users:
@@ -90,11 +75,11 @@ def login_user(email, password):
             return True
     return False
 
-# Google AI Image generation
+# Google Imagen AI generation
 def generate_image_google(prompt):
-    api_key = st.secrets.get("GOOGLE_API_KEY", None)
+    api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
-        st.error("Missing GOOGLE_API_KEY in secrets")
+        st.error("Missing GOOGLE_API_KEY in .streamlit/secrets.toml")
         return None
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("models/imagen-2")
@@ -108,52 +93,53 @@ def generate_image_google(prompt):
         st.error(f"Image generation failed: {str(e)}")
         return None
 
-# UI pages/functions
-
+# Show Login Page
 def show_login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
-
+        
         tab1, tab2 = st.tabs(["Login", "Register"])
-
+        
         with tab1:
             st.subheader("Login to Your Account")
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
-            if st.button("Login", type="primary"):
+            if st.button("Login"):
                 if login_user(email, password):
                     st.success("Login successful!")
-                    rerun()  # reload app immediately to show dashboard
-                    return
+                    # No rerun, just rely on normal rerun:
+                    # Setting logged_in True triggers UI refresh automatically
                 else:
                     st.error("Invalid credentials!")
 
         with tab2:
             st.subheader("Create New Account")
-            reg_business = st.text_input("Business Name", key="reg_business")
-            reg_email = st.text_input("Email", key="reg_email")
-            reg_password = st.text_input("Password", type="password", key="reg_password")
-            if st.button("Register", type="primary"):
-                if reg_business and reg_email and reg_password:
-                    register_user(reg_email, reg_password, reg_business)
+            business = st.text_input("Business Name", key="reg_business")
+            email = st.text_input("Email", key="reg_email")
+            password = st.text_input("Password", type="password", key="reg_password")
+            if st.button("Register"):
+                if business and email and password:
+                    register_user(email, password, business)
                     st.success("Registration successful! Please login.")
                 else:
                     st.error("Please fill all fields!")
 
+# Show Dashboard
 def show_dashboard():
     with st.sidebar:
-        st.markdown("### 💊 PharmaBiz Pro")
+        st.markdown(f"### 💊 PharmaBiz Pro")
         st.markdown(f"**User:** {st.session_state.user_email}")
         st.markdown("---")
-
-        menu = st.radio("Navigation", ["📊 Dashboard", "📦 Stock Management", "👨‍⚕️ Doctor Tracking", "📈 Analytics", "🚨 Alerts", "🎨 AI Generator", "📄 Reports"], key="menu")
+        menu = st.radio("Navigation", ["📊 Dashboard", "📦 Stock Management", "👨‍⚕️ Doctor Tracking", "📈 Analytics", "🚨 Alerts", "🎨 AI Generator", "📄 Reports"])
         st.markdown("---")
-        if st.button("🚪 Logout", type="secondary"):
+        if st.button("Logout"):
             st.session_state.logged_in = False
-            rerun()  # force immediate reload to login page
-
+            st.session_state.user_email = ""
+            st.success("Logged out successfully!")
+            
+    # Render selected page
     if menu == "📊 Dashboard":
         show_dashboard_page()
     elif menu == "📦 Stock Management":
@@ -169,13 +155,28 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
-# (Implement other UI functions similarly, unchanged)
+# Minimal example for main Dashboard page (implement similarly for other pages)
+def show_dashboard_page():
+    st.title("📊 Dashboard Overview")
+    total_stock = sum([s['units'] for s in st.session_state.stocks])
+    total_sold = sum([s['sold'] for s in st.session_state.stocks])
+    total_revenue = sum([s['sold_amount'] for s in st.session_state.stocks])
+    total_invested = sum([s['paid'] for s in st.session_state.stocks])
+    profit = total_revenue - total_invested
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Stock Units", f"{total_stock:,}")
+    col2.metric("Total Sold", f"{total_sold:,}")
+    col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
+    col4.metric("Profit", f"₹{profit:,.0f}")
+
+# Other UI functions: show_stock_management, show_doctor_tracking, show_analytics, show_alerts, show_ai_generator, show_reports...
+# (Implement similarly, unchanged from your previous code.)
 
 def main():
-    if not st.session_state.logged_in:
-        show_login_page()
-    else:
+    if st.session_state.logged_in:
         show_dashboard()
+    else:
+        show_login_page()
 
 if __name__ == "__main__":
     main()
