@@ -9,19 +9,17 @@ import io
 import base64
 import google.generativeai as genai
 
-# Stable rerun helper using native API
+# Helper to force app rerun (automatic page refresh)
 def rerun():
     st.experimental_rerun()
 
-# Page Configuration
+# Page config & styling
 st.set_page_config(
     page_title="PharmaBiz Pro",
     page_icon="💊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Custom CSS
 st.markdown("""
 <style>
     .main {background-color: #f8fafc;}
@@ -36,11 +34,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize Session State
+# Initialize session-state entries
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors']:
     if key not in st.session_state:
-        st.session_state[key] = False if key == 'logged_in' else [] if key in ['users', 'stocks', 'doctors'] else ""
+        if key == 'logged_in':
+            st.session_state[key] = False
+        else:
+            st.session_state[key] = []
 
+# Data persistence helpers
 def load_data():
     os.makedirs('data', exist_ok=True)
     try:
@@ -73,6 +75,7 @@ def save_data():
 
 load_data()
 
+# Authentication functions
 def register_user(email, password, business_name):
     user = {'email': email, 'password': password, 'business_name': business_name, 'created_at': datetime.now().isoformat()}
     st.session_state.users.append(user)
@@ -87,10 +90,11 @@ def login_user(email, password):
             return True
     return False
 
+# Google AI Image generation
 def generate_image_google(prompt):
     api_key = st.secrets.get("GOOGLE_API_KEY", None)
     if not api_key:
-        st.error("Google API key missing in .streamlit/secrets.toml.")
+        st.error("Missing GOOGLE_API_KEY in secrets")
         return None
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("models/imagen-2")
@@ -101,14 +105,17 @@ def generate_image_google(prompt):
         image = Image.open(io.BytesIO(image_bytes))
         return image
     except Exception as e:
-        st.error(f"Image generation failed: {e}")
+        st.error(f"Image generation failed: {str(e)}")
         return None
+
+# UI pages/functions
 
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
+
         tab1, tab2 = st.tabs(["Login", "Register"])
 
         with tab1:
@@ -117,7 +124,9 @@ def show_login_page():
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login", type="primary"):
                 if login_user(email, password):
-                    st.success("Login successful! Please refresh the page.")
+                    st.success("Login successful!")
+                    rerun()  # reload app immediately to show dashboard
+                    return
                 else:
                     st.error("Invalid credentials!")
 
@@ -143,7 +152,7 @@ def show_dashboard():
         st.markdown("---")
         if st.button("🚪 Logout", type="secondary"):
             st.session_state.logged_in = False
-            st.info("Logged out! Please refresh the page.")
+            rerun()  # force immediate reload to login page
 
     if menu == "📊 Dashboard":
         show_dashboard_page()
@@ -160,11 +169,9 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
-# [Keep all other functions same as before — dashboard page, stock management, etc. — replacing any rerun() calls 
-# with informative message to refresh manually.]
+# (Implement other UI functions similarly, unchanged)
 
 def main():
-    st.write("🚀 PharmaBiz Pro loaded")
     if not st.session_state.logged_in:
         show_login_page()
     else:
