@@ -7,6 +7,7 @@ import google.generativeai as genai
 from PIL import Image
 import base64
 import io
+import time
 
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
@@ -15,6 +16,7 @@ def safe_rerun():
         st.session_state["_rerun_flag"] = not st.session_state.get("_rerun_flag", False)
 
 st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
+
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
@@ -24,10 +26,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_flag']:
+for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
     if key not in st.session_state:
-        st.session_state[key] = False if key in ['logged_in', '_rerun_flag'] else []
+        st.session_state[key] = False if key in ['logged_in', '_rerun_flag'] else ([] if key != 'chat_history' else [])
 
+# Load and save helpers without caching to always read fresh data
 def load_json(filepath):
     try:
         with open(filepath, "r") as f:
@@ -50,14 +53,12 @@ def save_data():
     save_json(st.session_state.stocks, "data/stocks.json")
     save_json(st.session_state.doctors, "data/doctors.json")
 
-# Load all data fresh at app start or rerun
 load_all_data()
 
 def register_user(email, password, business_name):
     email = email.strip().lower()
     password = password.strip()
     business_name = business_name.strip()
-    # Prevent duplicate email
     for user in st.session_state.users:
         if user['email'] == email:
             st.warning("User already registered.")
@@ -81,24 +82,23 @@ def login_user(email, password):
             return True
     return False
 
-def generate_image_google(prompt):
-    genai.configure()  # API key managed by Streamlit Cloud environment
-    model = genai.GenerativeModel("models/imagen-2")
+# Google Imagen chat-based AI helper - takes a prompt returns chat response
+def generate_chat_response(prompt):
+    genai.configure()
+    model = genai.ChatModel("models/chat-bison-001")
     try:
-        response = model.generate_content(prompt)
-        image_data = response.candidates[0].content.parts[0].inline_data.data
-        image_bytes = base64.b64decode(image_data)
-        return Image.open(io.BytesIO(image_bytes))
+        response = model.chat(messages=[{"author":"user","content":prompt}])
+        return response.last.content
     except Exception as e:
-        st.error(f"Image generation failed: {e}")
-        return None
+        st.error(f"AI chat generation failed: {e}")
+        return "Sorry, I couldn't process that."
 
+# Login UI
 def show_login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
-
         tab1, tab2 = st.tabs(["Login", "Register"])
 
         with tab1:
@@ -106,12 +106,11 @@ def show_login_page():
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
-                with st.spinner("Logging in..."):
-                    if login_user(email, password):
-                        st.success("Login successful!")
-                        safe_rerun()
-                    else:
-                        st.error("Invalid credentials!")
+                if login_user(email, password):
+                    st.success("Login successful!")
+                    safe_rerun()
+                else:
+                    st.error("Invalid credentials!")
 
         with tab2:
             st.subheader("Create New Account")
@@ -120,11 +119,35 @@ def show_login_page():
             password = st.text_input("Password", type="password", key="reg_password")
             if st.button("Register"):
                 if business_name and email and password:
-                    success = register_user(email, password, business_name)
-                    if success:
+                    if register_user(email, password, business_name):
                         st.success("Registration successful! Please login.")
                 else:
                     st.error("Please fill all fields!")
+
+# Chatbot UI for AI generator page
+def show_ai_chatbot():
+    st.title("🎨 AI Chatbot Assistant")
+    st.markdown("Ask any questions about your pharmaceutical business data or general queries, and get instant AI assistance.")
+
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+
+    def submit_question():
+        user_msg = st.session_state.user_input.strip()
+        if user_msg:
+            st.session_state.chat_history.append({"role":"user","content":user_msg})
+            ai_response = generate_chat_response(user_msg)
+            st.session_state.chat_history.append({"role":"assistant","content":ai_response})
+            st.session_state.user_input = ""
+
+    st.text_input("Ask your question here...", key="user_input", on_change=submit_question)
+
+    # Show conversation
+    for chat in st.session_state.chat_history:
+        if chat["role"] == "user":
+            st.markdown(f"**You:** {chat['content']}")
+        else:
+            st.markdown(f"**AI:** {chat['content']}")
 
 def show_stock_management():
     st.title("📦 Stock Management")
@@ -132,7 +155,7 @@ def show_stock_management():
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
-            required_cols = {'name', 'batch_no', 'received', 'expired', 'paid', 'units', 'sold', 'sold_amount', 'prescribed_by'}
+            required_cols = {'name','batch_no','received','expired','paid','units','sold','sold_amount','prescribed_by'}
             if not required_cols.issubset(set(df.columns.str.lower())):
                 st.error(f"Excel missing required columns: {required_cols}")
             else:
@@ -146,7 +169,7 @@ def show_stock_management():
             st.error(f"Error processing file: {e}")
 
     st.markdown("### Add Stock Manually")
-    with st.form("add_stock_form", clear_on_submit=True):
+    with st.form("add_stock", clear_on_submit=True):
         name = st.text_input("Product Name")
         batch_no = st.text_input("Batch Number")
         received = st.date_input("Received Date")
@@ -158,7 +181,7 @@ def show_stock_management():
         prescribed_by = st.text_input("Prescribed By")
         submitted = st.form_submit_button("Add Stock")
         if submitted:
-            new_stock = {
+            st.session_state.stocks.append({
                 "name": name,
                 "batch_no": batch_no,
                 "received": str(received),
@@ -167,14 +190,14 @@ def show_stock_management():
                 "units": units,
                 "sold": sold,
                 "sold_amount": sold_amount,
-                "prescribed_by": prescribed_by,
-            }
-            st.session_state.stocks.append(new_stock)
+                "prescribed_by": prescribed_by
+            })
             save_data()
             st.success("Stock added!")
             safe_rerun()
 
-    st.dataframe(pd.DataFrame(st.session_state.stocks))
+    if st.session_state.stocks:
+        st.dataframe(pd.DataFrame(st.session_state.stocks))
 
 def show_doctor_tracking():
     st.title("👨‍⚕️ Doctor Tracking")
@@ -182,7 +205,7 @@ def show_doctor_tracking():
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
-            required_cols = {'name', 'clinic', 'phone', 'total_sales'}
+            required_cols = {'name','clinic','phone','total_sales'}
             if not required_cols.issubset(set(df.columns.str.lower())):
                 st.error(f"Excel missing required columns: {required_cols}")
             else:
@@ -196,25 +219,25 @@ def show_doctor_tracking():
             st.error(f"Error processing file: {e}")
 
     st.markdown("### Add Doctor Manually")
-    with st.form("add_doctor_form", clear_on_submit=True):
+    with st.form("add_doctor", clear_on_submit=True):
         name = st.text_input("Doctor Name")
         clinic = st.text_input("Clinic")
         phone = st.text_input("Phone")
         total_sales = st.number_input("Total Sales", min_value=0.0, step=0.01)
         submitted = st.form_submit_button("Add Doctor")
         if submitted:
-            new_doc = {
+            st.session_state.doctors.append({
                 "name": name,
                 "clinic": clinic,
                 "phone": phone,
-                "total_sales": total_sales,
-            }
-            st.session_state.doctors.append(new_doc)
+                "total_sales": total_sales
+            })
             save_data()
             st.success("Doctor added!")
             safe_rerun()
 
-    st.dataframe(pd.DataFrame(st.session_state.doctors))
+    if st.session_state.doctors:
+        st.dataframe(pd.DataFrame(st.session_state.doctors))
 
 def show_dashboard():
     with st.sidebar:
@@ -230,9 +253,9 @@ def show_dashboard():
                 "📈 Analytics",
                 "🚨 Alerts",
                 "🎨 AI Generator",
-                "📄 Reports",
+                "📄 Reports"
             ],
-            index=0,
+            index=0
         )
         st.markdown("---")
         if st.button("Logout"):
@@ -251,7 +274,7 @@ def show_dashboard():
     elif menu == "🚨 Alerts":
         show_alerts()
     elif menu == "🎨 AI Generator":
-        show_ai_generator()
+        show_ai_chatbot()
     elif menu == "📄 Reports":
         show_reports()
 
@@ -269,16 +292,13 @@ def show_dashboard_page():
     col4.metric("Profit", f"₹{profit:,.0f}")
 
 def show_analytics():
-    st.info("Analytics features coming soon.")
+    st.info("Analytics coming soon!")
 
 def show_alerts():
-    st.info("Alerts features coming soon.")
-
-def show_ai_generator():
-    st.info("AI Generator coming soon.")
+    st.info("Alerts coming soon!")
 
 def show_reports():
-    st.info("Reports coming soon.")
+    st.info("Reports coming soon!")
 
 def main():
     if st.session_state.logged_in:
