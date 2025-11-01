@@ -25,12 +25,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
+for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', 'user_text', '_rerun_flag']:
     if key not in st.session_state:
         if key in ['logged_in', '_rerun_flag']:
             st.session_state[key] = False
-        elif key == 'chat_history':
-            st.session_state[key] = []
+        elif key in ['chat_history', 'user_text']:
+            st.session_state[key] = [] if key == "chat_history" else ""
         else:
             st.session_state[key] = []
 
@@ -85,9 +85,8 @@ def login_user(email, password):
             return True
     return False
 
-# Updated chat response generator with supported model
 def generate_chat_response(prompt):
-    genai.configure()  # Reads api key from environment
+    genai.configure()
     model_name = "models/text-bison-001"
     try:
         model = genai.GenerativeModel(model_name)
@@ -102,9 +101,7 @@ def show_login_page():
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
-
         tab1, tab2 = st.tabs(["Login", "Register"])
-
         with tab1:
             st.subheader("Login to Your Account")
             email = st.text_input("Email", key="login_email")
@@ -116,7 +113,6 @@ def show_login_page():
                         safe_rerun()
                     else:
                         st.error("Invalid credentials!")
-
         with tab2:
             st.subheader("Create New Account")
             business_name = st.text_input("Business Name", key="reg_business")
@@ -135,18 +131,23 @@ def show_ai_chatbot():
 
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
+    if "user_text" not in st.session_state:
+        st.session_state.user_text = ""
 
     def add_message(role, content):
         st.session_state.chat_history.append({"role": role, "content": content})
 
-    user_input = st.text_input("Enter your question here:", key="user_input")
+    user_input = st.text_input("Enter your question here:", key="user_text")
 
-    if st.button("Send") and user_input.strip():
-        add_message("user", user_input)
-        with st.spinner("AI is thinking..."):
-            ai_reply = generate_chat_response(user_input)
-        add_message("assistant", ai_reply)
-        st.session_state.user_input = ""
+    if st.button("Send"):
+        if user_input.strip():
+            add_message("user", user_input)
+            with st.spinner("AI is thinking..."):
+                ai_reply = generate_chat_response(user_input)
+            add_message("assistant", ai_reply)
+            # Clear input before rerun to avoid Streamlit error
+            st.session_state.user_text = ""
+            safe_rerun()
 
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
