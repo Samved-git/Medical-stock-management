@@ -19,18 +19,20 @@ st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", 
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
-  .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
+  .stButton>button {
+    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
+  }
   h1 {color: #1e293b;}
   .stAlert {border-radius: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', 'user_text', '_rerun_flag']:
+for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
     if key not in st.session_state:
         if key in ['logged_in', '_rerun_flag']:
             st.session_state[key] = False
-        elif key in ['chat_history', 'user_text']:
-            st.session_state[key] = [] if key == "chat_history" else ""
+        elif key == 'chat_history':
+            st.session_state[key] = []
         else:
             st.session_state[key] = []
 
@@ -127,27 +129,24 @@ def show_login_page():
 
 def show_ai_chatbot():
     st.title("🤖 AI Chatbot Assistant")
-    st.markdown("Ask questions about your pharmaceutical business or general queries.")
+    st.markdown("Ask any questions about your pharmaceutical business or general queries.")
 
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
-    if "user_text" not in st.session_state:
-        st.session_state.user_text = ""
 
     def add_message(role, content):
         st.session_state.chat_history.append({"role": role, "content": content})
 
-    user_input = st.text_input("Enter your question here:", key="user_text")
+    with st.form(key="chat_form", clear_on_submit=True):
+        user_input = st.text_input("Enter your question here:")
+        submitted = st.form_submit_button("Send")
 
-    if st.button("Send"):
-        if user_input.strip():
-            add_message("user", user_input)
-            with st.spinner("AI is thinking..."):
-                ai_reply = generate_chat_response(user_input)
-            add_message("assistant", ai_reply)
-            # Clear input before rerun to avoid Streamlit error
-            st.session_state.user_text = ""
-            safe_rerun()
+    if submitted and user_input.strip():
+        add_message("user", user_input)
+        with st.spinner("AI is thinking..."):
+            ai_reply = generate_chat_response(user_input)
+        add_message("assistant", ai_reply)
+        safe_rerun()
 
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
