@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from google import genai
 
-# Initialize Google GenAI client (set GOOGLE_API_KEY in environment)
+# Initialize GenAI client - requires GOOGLE_API_KEY env variable configured
 client = genai.Client()
 
 def safe_rerun():
@@ -14,28 +14,25 @@ def safe_rerun():
     else:
         st.session_state["_rerun_flag"] = not st.session_state.get("_rerun_flag", False)
 
-st.set_page_config(
-    page_title="PharmaBiz Pro",
-    page_icon="💊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
-  .stButton>button {
-    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
-  }
+  .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
   h1 {color: #1e293b;}
   .stAlert {border-radius: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize keys for session state storage
-for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
+for key in ['logged_in','user_email','users','stocks','doctors','chat_history','_rerun_flag']:
     if key not in st.session_state:
-        st.session_state[key] = False if key in ['logged_in', '_rerun_flag'] else ([] if key != 'chat_history' else [])
+        if key in ['logged_in', '_rerun_flag']:
+            st.session_state[key] = False
+        elif key == 'chat_history':
+            st.session_state[key] = []
+        else:
+            st.session_state[key] = []
 
 def load_json(filepath):
     try:
@@ -66,7 +63,7 @@ def register_user(email, password, business_name):
     password = password.strip()
     business_name = business_name.strip()
     if any(u['email'] == email for u in st.session_state.users):
-        st.warning("User with this email already registered.")
+        st.warning("User already registered.")
         return False
     st.session_state.users.append({
         "email": email,
@@ -99,7 +96,7 @@ def generate_chat_response(prompt):
         return "Sorry, I couldn't process that."
 
 def show_login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.title("💊 PharmaBiz Pro")
         tab1, tab2 = st.tabs(["Login", "Register"])
@@ -147,18 +144,18 @@ def show_ai_chatbot():
         safe_rerun()
 
     for msg in st.session_state.chat_history:
-        if msg['role'] == 'user':
+        if msg["role"] == "user":
             st.markdown(f"**You:** {msg['content']}")
         else:
             st.markdown(f"**AI:** {msg['content']}")
 
 def show_stock_management():
     st.title("📦 Stock Management")
-    uploaded_file = st.file_uploader("Upload Excel (.xlsx) to bulk add stocks", type=["xlsx"])
+    uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to bulk add stocks", type=["xlsx"])
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
-            required_cols = {'name', 'batch_no', 'received', 'expired', 'paid', 'units', 'sold', 'sold_amount', 'prescribed_by'}
+            required_cols = {'name','batch_no','received','expired','paid','units','sold','sold_amount','prescribed_by'}
             if not required_cols.issubset(df.columns.str.lower()):
                 st.error(f"Missing columns: {required_cols}")
             else:
@@ -204,11 +201,11 @@ def show_stock_management():
 
 def show_doctor_tracking():
     st.title("👨‍⚕️ Doctor Tracking")
-    uploaded_file = st.file_uploader("Upload Excel (.xlsx) to bulk add doctors", type=["xlsx"])
+    uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to bulk add doctors", type=["xlsx"])
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
-            required_cols = {'name', 'clinic', 'phone', 'total_sales'}
+            required_cols = {'name','clinic','phone','total_sales'}
             if not required_cols.issubset(df.columns.str.lower()):
                 st.error(f"Missing columns: {required_cols}")
             else:
@@ -261,7 +258,6 @@ def show_dashboard():
             st.session_state.logged_in = False
             st.session_state.user_email = ""
             safe_rerun()
-
     if menu == "📊 Dashboard":
         show_dashboard_page()
     elif menu == "📦 Stock Management":
