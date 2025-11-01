@@ -9,7 +9,7 @@ import io
 import base64
 import google.generativeai as genai
 
-# Page Setup & Styles
+# Setup Page and CSS
 st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
@@ -20,33 +20,42 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session variables
+# Initialize session state variables
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'login_success']:
     if key not in st.session_state:
         st.session_state[key] = False if key == 'logged_in' or key == 'login_success' else []
 
-# Data load/save helpers
+# Load/Save data helpers as before
 def load_data():
     os.makedirs('data', exist_ok=True)
     try:
-        with open('data/users.json', 'r') as f: st.session_state.users = json.load(f)
-    except: st.session_state.users = []
+        with open('data/users.json', 'r') as f:
+            st.session_state.users = json.load(f)
+    except:
+        st.session_state.users = []
     try:
-        with open('data/stocks.json', 'r') as f: st.session_state.stocks = json.load(f)
-    except: st.session_state.stocks = []
+        with open('data/stocks.json', 'r') as f:
+            st.session_state.stocks = json.load(f)
+    except:
+        st.session_state.stocks = []
     try:
-        with open('data/doctors.json', 'r') as f: st.session_state.doctors = json.load(f)
-    except: st.session_state.doctors = []
+        with open('data/doctors.json', 'r') as f:
+            st.session_state.doctors = json.load(f)
+    except:
+        st.session_state.doctors = []
 
 def save_data():
     os.makedirs('data', exist_ok=True)
-    with open('data/users.json', 'w') as f: json.dump(st.session_state.users, f)
-    with open('data/stocks.json', 'w') as f: json.dump(st.session_state.stocks, f)
-    with open('data/doctors.json', 'w') as f: json.dump(st.session_state.doctors, f)
+    with open('data/users.json', 'w') as f:
+        json.dump(st.session_state.users, f)
+    with open('data/stocks.json', 'w') as f:
+        json.dump(st.session_state.stocks, f)
+    with open('data/doctors.json', 'w') as f:
+        json.dump(st.session_state.doctors, f)
 
 load_data()
 
-# Helpers: Authentication
+# Authentication functions
 def register_user(email, password, business_name):
     st.session_state.users.append({'email': email, 'password': password, 'business_name': business_name, 'created_at': datetime.now().isoformat()})
     save_data()
@@ -59,7 +68,7 @@ def login_user(email, password):
             return True
     return False
 
-# Google Imagen AI generation (unchanged)
+# Google Imagen AI generation
 def generate_image_google(prompt):
     api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
@@ -77,7 +86,8 @@ def generate_image_google(prompt):
         st.error(f"Image generation failed: {e}")
         return None
 
-# UI - Login Page with immediate dashboard transition
+# Login page UI as before (unchanged)
+
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -91,17 +101,14 @@ def show_login_page():
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
-                success = login_user(email, password)
-                if success:
-                    st.session_state.login_success = True
-                    # Rely on session state re-run — no manual rerun call
+                if login_user(email, password):
+                    st.success("Login successful!")
+                    if hasattr(st, 'experimental_rerun'):
+                        st.experimental_rerun()
+                    else:
+                        pass  # rely on Streamlit's natural rerun when input changes
                 else:
                     st.error("Invalid credentials!")
-
-            # Immediately switch page on successful login
-            if st.session_state.get('login_success', False):
-                st.session_state.login_success = False  # reset flag
-                st.experimental_rerun() if hasattr(st, 'experimental_rerun') else None
 
         with tab2:
             st.subheader("Create New Account")
@@ -115,18 +122,26 @@ def show_login_page():
                 else:
                     st.error("Please fill all fields!")
 
-# Dashboard UI
+# Dashboard UI and navigation with all pages implemented as at least stubs
+
 def show_dashboard():
     with st.sidebar:
         st.markdown(f"### 💊 PharmaBiz Pro")
         st.markdown(f"User: {st.session_state.user_email}")
         st.markdown("---")
-        menu = st.radio("Navigation", ["📊 Dashboard","📦 Stock Management","👨‍⚕️ Doctor Tracking","📈 Analytics","🚨 Alerts","🎨 AI Generator","📄 Reports"])
+        menu = st.radio("Navigation", ["📊 Dashboard",
+                                      "📦 Stock Management",
+                                      "👨‍⚕️ Doctor Tracking",
+                                      "📈 Analytics",
+                                      "🚨 Alerts",
+                                      "🎨 AI Generator",
+                                      "📄 Reports"])
         st.markdown("---")
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.user_email = ""
-            st.experimental_rerun() if hasattr(st, 'experimental_rerun') else None
+            if hasattr(st, 'experimental_rerun'):
+                st.experimental_rerun()
 
     if menu == "📊 Dashboard":
         show_dashboard_page()
@@ -143,13 +158,15 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
-# Example: Dashboard page
+
+# Implementations of all page functions below as stubs or full features
+
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
-    total_stock = sum(s.get('units', 0) for s in st.session_state.stocks)
-    total_sold = sum(s.get('sold', 0) for s in st.session_state.stocks)
-    total_revenue = sum(s.get('sold_amount', 0.0) for s in st.session_state.stocks)
-    total_invested = sum(s.get('paid', 0.0) for s in st.session_state.stocks)
+    total_stock = sum([s.get('units', 0) for s in st.session_state.stocks])
+    total_sold = sum([s.get('sold', 0) for s in st.session_state.stocks])
+    total_revenue = sum([s.get('sold_amount', 0) for s in st.session_state.stocks])
+    total_invested = sum([s.get('paid', 0) for s in st.session_state.stocks])
     profit = total_revenue - total_invested
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Stock Units", f"{total_stock:,}")
@@ -157,7 +174,38 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-# Other page implementations are omitted for brevity
+def show_stock_management():
+    st.title("📦 Stock Management")
+    st.info("Stock management features to be implemented.")
+
+def show_doctor_tracking():
+    st.title("👨‍⚕️ Doctor Tracking")
+    st.info("Doctor tracking features to be implemented.")
+
+def show_analytics():
+    st.title("📈 Analytics")
+    st.info("Analytics features to be implemented.")
+
+def show_alerts():
+    st.title("🚨 Alerts")
+    st.info("Expiry alerts features to be implemented.")
+
+def show_ai_generator():
+    st.title("🎨 AI Content Generator")
+    prompt = st.text_area("Enter prompt:", placeholder="E.g. promotional image of medicine named ASDFG (Pain killer)")
+    if st.button("Generate"):
+        if prompt:
+            image = generate_image_google(prompt)
+            if image:
+                st.image(image, caption="AI Generated Image")
+            else:
+                st.error("Failed to generate image.")
+        else:
+            st.warning("Please enter a prompt.")
+
+def show_reports():
+    st.title("📄 Reports")
+    st.info("Reports & insights features to be implemented.")
 
 def main():
     if st.session_state.logged_in:
