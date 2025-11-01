@@ -8,63 +8,45 @@ from PIL import Image
 import base64
 import io
 
-# Safe rerun helper: uses experimental_rerun if available, else toggles dummy key
+# Helper rerun function
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
     else:
         st.session_state["_rerun_flag"] = not st.session_state.get("_rerun_flag", False)
 
-# Page configuration and styling
-st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
-st.markdown("""
-<style>
-  .main {background-color: #f8fafc;}
-  .stButton>button {
-    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
-  }
-  h1 {color: #1e293b;}
-  .stAlert {border-radius: 8px;}
-</style>
-""", unsafe_allow_html=True)
-
-# Initialize session variables
-for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_flag']:
-    if key not in st.session_state:
-        if key == 'logged_in' or key == '_rerun_flag':
-            st.session_state[key] = False
-        else:
-            st.session_state[key] = []
-
-# Data loading & saving helpers
-def load_data():
-    os.makedirs('data', exist_ok=True)
+# Cache JSON loading for better performance
+@st.cache_data(show_spinner=False)
+def load_json_data(filepath):
     try:
-        with open('data/users.json', 'r') as f:
-            st.session_state.users = json.load(f)
+        with open(filepath, "r") as f:
+            return json.load(f)
     except:
-        st.session_state.users = []
-    try:
-        with open('data/stocks.json', 'r') as f:
-            st.session_state.stocks = json.load(f)
-    except:
-        st.session_state.stocks = []
-    try:
-        with open('data/doctors.json', 'r') as f:
-            st.session_state.doctors = json.load(f)
-    except:
-        st.session_state.doctors = []
+        return []
 
+# Load all data with caching    
+def load_all_data():
+    os.makedirs("data", exist_ok=True)
+    st.session_state.users = load_json_data("data/users.json")
+    st.session_state.stocks = load_json_data("data/stocks.json")
+    st.session_state.doctors = load_json_data("data/doctors.json")
+
+# Save helpers without caching
 def save_data():
-    os.makedirs('data', exist_ok=True)
-    with open('data/users.json', 'w') as f:
+    os.makedirs("data", exist_ok=True)
+    with open("data/users.json", "w") as f:
         json.dump(st.session_state.users, f)
-    with open('data/stocks.json', 'w') as f:
+    with open("data/stocks.json", "w") as f:
         json.dump(st.session_state.stocks, f)
-    with open('data/doctors.json', 'w') as f:
+    with open("data/doctors.json", "w") as f:
         json.dump(st.session_state.doctors, f)
 
-load_data()
+# Init session state vars
+for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_flag']:
+    if key not in st.session_state:
+        st.session_state[key] = False if key in ['logged_in', '_rerun_flag'] else []
+
+load_all_data()
 
 # Authentication logic
 def register_user(email, password, business_name):
@@ -84,9 +66,9 @@ def login_user(email, password):
             return True
     return False
 
-# Google Imagen image generation (uses environment-injected API key by Streamlit Cloud)
+# Google Imagen image generation (uses API key injected by environment)
 def generate_image_google(prompt):
-    genai.configure()  # API key picked up from environment variables managed by Streamlit Cloud
+    genai.configure()  # API key implicitly via environment
     model = genai.GenerativeModel("models/imagen-2")
     try:
         response = model.generate_content(prompt)
@@ -97,7 +79,7 @@ def generate_image_google(prompt):
         st.error(f"Image generation failed: {e}")
         return None
 
-# Login page UI
+# Login page with spinner
 def show_login_page():
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
@@ -111,11 +93,12 @@ def show_login_page():
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
-                if login_user(email, password):
-                    st.success("Login successful!")
-                    safe_rerun()
-                else:
-                    st.error("Invalid credentials!")
+                with st.spinner("Logging in..."):
+                    if login_user(email, password):
+                        st.success("Login successful!")
+                        safe_rerun()
+                    else:
+                        st.error("Invalid credentials!")
 
         with tab2:
             st.subheader("Create New Account")
@@ -129,25 +112,21 @@ def show_login_page():
                 else:
                     st.error("Please fill all fields!")
 
-# Dashboard + Navigation sidebar
+# Dashboard with sidebar menu
 def show_dashboard():
     with st.sidebar:
         st.markdown("### 💊 PharmaBiz Pro")
         st.markdown(f"User: {st.session_state.user_email}")
         st.markdown("---")
-        menu = st.radio(
-            "Navigation",
-            [
-                "📊 Dashboard",
-                "📦 Stock Management",
-                "👨‍⚕️ Doctor Tracking",
-                "📈 Analytics",
-                "🚨 Alerts",
-                "🎨 AI Generator",
-                "📄 Reports"
-            ],
-            index=0
-        )
+        menu = st.radio("Navigation", [
+            "📊 Dashboard",
+            "📦 Stock Management",
+            "👨‍⚕️ Doctor Tracking",
+            "📈 Analytics",
+            "🚨 Alerts",
+            "🎨 AI Generator",
+            "📄 Reports"
+        ])
         st.markdown("---")
         if st.button("Logout"):
             st.session_state.logged_in = False
@@ -169,7 +148,7 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
-# Dashboard page example
+# Dashboard page example with key metrics
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
     total_stock = sum(s.get("units", 0) for s in st.session_state.stocks)
@@ -183,13 +162,13 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-# Placeholder pages that you can expand
-def show_stock_management(): st.info("Stock Management page coming soon!")
-def show_doctor_tracking(): st.info("Doctor Tracking page coming soon!")
-def show_analytics(): st.info("Analytics page coming soon!")
-def show_alerts(): st.info("Alerts page coming soon!")
-def show_ai_generator(): st.info("AI Generator page coming soon!")
-def show_reports(): st.info("Reports page coming soon!")
+# Placeholders for other pages
+def show_stock_management(): st.info("Stock Management coming soon...")
+def show_doctor_tracking(): st.info("Doctor Tracking coming soon...")
+def show_analytics(): st.info("Analytics coming soon...")
+def show_alerts(): st.info("Alerts coming soon...")
+def show_ai_generator(): st.info("AI Generator coming soon...")
+def show_reports(): st.info("Reports coming soon...")
 
 def main():
     if st.session_state.logged_in:
