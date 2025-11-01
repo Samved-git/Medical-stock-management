@@ -3,10 +3,7 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-from google.genai_v1 import ChatCompletionClient
-
-# Initialize the client once
-client = ChatCompletionClient()
+from google import genai
 
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
@@ -19,9 +16,7 @@ st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", 
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
-  .stButton>button {
-    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
-  }
+  .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
   h1 {color: #1e293b;}
   .stAlert {border-radius: 8px;}
 </style>
@@ -29,12 +24,7 @@ st.markdown("""
 
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
     if key not in st.session_state:
-        if key in ['logged_in', '_rerun_flag']:
-            st.session_state[key] = False
-        elif key == 'chat_history':
-            st.session_state[key] = []
-        else:
-            st.session_state[key] = []
+        st.session_state[key] = False if key in ['logged_in', '_rerun_flag'] else ([] if key != 'chat_history' else [])
 
 def load_json(filepath):
     try:
@@ -87,9 +77,11 @@ def login_user(email, password):
             return True
     return False
 
+client = genai.Client()
+
 def generate_chat_response(prompt):
     try:
-        response = client.create_chat_completion(
+        response = client.chat.completions.create(
             model="models/gemini-1.5-turbo",
             messages=[{"author": "user", "content": prompt}],
         )
@@ -129,7 +121,6 @@ def show_login_page():
 def show_ai_chatbot():
     st.title("🤖 AI Chatbot Assistant")
     st.markdown("Ask any questions about your pharmaceutical business or general queries.")
-
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
@@ -153,7 +144,8 @@ def show_ai_chatbot():
         else:
             st.markdown(f"**AI:** {msg['content']}")
 
-# Other UI functions like show_stock_management, show_doctor_tracking, show_dashboard remain same as before
+# The rest of your UI functions such as stock management, doctor tracking, dashboard, etc. 
+# remain as previously defined and unchanged.
 
 def main():
     if st.session_state.logged_in:
@@ -177,7 +169,7 @@ def show_dashboard():
                 "🎨 AI Generator",
                 "📄 Reports",
             ],
-            index=0,
+            index=0
         )
         st.markdown("---")
         if st.button("Logout"):
@@ -214,19 +206,19 @@ def show_dashboard_page():
     col4.metric("Profit", f"₹{profit:,.0f}")
 
 def show_stock_management():
-    st.info("Stock Management UI here")
+    st.info("Stock management UI placeholder")
 
 def show_doctor_tracking():
-    st.info("Doctor Tracking UI here")
+    st.info("Doctor tracking UI placeholder")
 
 def show_analytics():
-    st.info("Analytics UI here")
+    st.info("Analytics UI placeholder")
 
 def show_alerts():
-    st.info("Alerts UI here")
+    st.info("Alerts UI placeholder")
 
 def show_reports():
-    st.info("Reports UI here")
+    st.info("Reports UI placeholder")
 
 if __name__ == "__main__":
     main()
