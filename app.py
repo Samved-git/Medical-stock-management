@@ -8,39 +8,30 @@ from PIL import Image
 import base64
 import io
 
-# Safe rerun function: uses st.experimental_rerun if available, else toggles dummy key for rerun
+# Helper to trigger rerun: uses experimental_rerun if available else toggles session_state key
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
     else:
-        # Toggle a dummy key to trigger rerun in older Streamlit versions
-        st.session_state["_rerun_toggle"] = not st.session_state.get("_rerun_toggle", False)
+        st.session_state._rerun_toggle = not st.session_state.get("_rerun_toggle", False)
 
-# Initial configurations and styles
+# Page Setup and Styles
 st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
-
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
-  .stButton>button {
-    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
-  }
+  .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
   h1 {color: #1e293b;}
   .stAlert {border-radius: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session_state keys
+# Initialize session states
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_toggle']:
     if key not in st.session_state:
-        if key == 'logged_in':
-            st.session_state[key] = False
-        elif key == '_rerun_toggle':
-            st.session_state[key] = False
-        else:
-            st.session_state[key] = []
+        st.session_state[key] = False if key == 'logged_in' or key == '_rerun_toggle' else []
 
-# Data persistence helpers
+# Data persistence
 def load_data():
     os.makedirs('data', exist_ok=True)
     try:
@@ -87,7 +78,7 @@ def login_user(email, password):
 def generate_image_google(prompt):
     api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
-        st.error("Missing GOOGLE_API_KEY in your secrets.toml")
+        st.error("Missing GOOGLE_API_KEY in .streamlit/secrets.toml")
         return None
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("models/imagen-2")
@@ -100,8 +91,7 @@ def generate_image_google(prompt):
         st.error(f"Image generation failed: {e}")
         return None
 
-# UI pages
-
+# Login page UI
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -116,7 +106,7 @@ def show_login_page():
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
                 if login_user(email, password):
-                    st.success("Login successful! Redirecting …")
+                    st.success("Login successful!")
                     safe_rerun()
                 else:
                     st.error("Invalid credentials!")
@@ -133,6 +123,7 @@ def show_login_page():
                 else:
                     st.error("Please fill all fields!")
 
+# Dashboard UI and navigation
 def show_dashboard():
     with st.sidebar:
         st.markdown("### 💊 PharmaBiz Pro")
@@ -172,12 +163,13 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
+# Dashboard page
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
     total_stock = sum(s.get("units", 0) for s in st.session_state.stocks)
     total_sold = sum(s.get("sold", 0) for s in st.session_state.stocks)
-    total_revenue = sum(s.get("sold_amount", 0.0) for s in st.session_state.stocks)
-    total_invested = sum(s.get("paid", 0.0) for s in st.session_state.stocks)
+    total_revenue = sum(s.get("sold_amount", 0) for s in st.session_state.stocks)
+    total_invested = sum(s.get("paid", 0) for s in st.session_state.stocks)
     profit = total_revenue - total_invested
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Stock Units", f"{total_stock:,}")
@@ -185,12 +177,12 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-# Placeholder implementations for other pages
-def show_stock_management(): st.info("Stock management page coming soon!")
-def show_doctor_tracking(): st.info("Doctor tracking page coming soon!")
+# Placeholder pages
+def show_stock_management(): st.info("Stock Management page coming soon!")
+def show_doctor_tracking(): st.info("Doctor Tracking page coming soon!")
 def show_analytics(): st.info("Analytics page coming soon!")
 def show_alerts(): st.info("Alerts page coming soon!")
-def show_ai_generator(): st.info("AI generator page coming soon!")
+def show_ai_generator(): st.info("AI Generator page coming soon!")
 def show_reports(): st.info("Reports page coming soon!")
 
 def main():
