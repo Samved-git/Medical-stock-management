@@ -24,7 +24,12 @@ st.markdown("""
 
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
     if key not in st.session_state:
-        st.session_state[key] = False if key in ['logged_in', '_rerun_flag'] else ([] if key != 'chat_history' else [])
+        if key in ['logged_in', '_rerun_flag']:
+            st.session_state[key] = False
+        elif key == 'chat_history':
+            st.session_state[key] = []
+        else:
+            st.session_state[key] = []
 
 def load_json(filepath):
     try:
@@ -144,14 +149,95 @@ def show_ai_chatbot():
         else:
             st.markdown(f"**AI:** {msg['content']}")
 
-# The rest of your UI functions such as stock management, doctor tracking, dashboard, etc. 
-# remain as previously defined and unchanged.
+def show_stock_management():
+    st.title("📦 Stock Management")
+    uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to bulk add stocks", type=["xlsx"])
+    if uploaded_file:
+        try:
+            df = pd.read_excel(uploaded_file, engine="openpyxl")
+            required_cols = {'name', 'batch_no', 'received', 'expired', 'paid', 'units', 'sold', 'sold_amount', 'prescribed_by'}
+            if not required_cols.issubset(set(df.columns.str.lower())):
+                st.error(f"Excel missing required columns: {required_cols}")
+            else:
+                df = df.rename(columns=str.lower)
+                new_stocks = df.to_dict(orient='records')
+                st.session_state.stocks.extend(new_stocks)
+                save_data()
+                st.success(f"{len(new_stocks)} stock records added!")
+                safe_rerun()
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
 
-def main():
-    if st.session_state.logged_in:
-        show_dashboard()
-    else:
-        show_login_page()
+    st.markdown("### Add Stock Manually")
+    with st.form("add_stock", clear_on_submit=True):
+        name = st.text_input("Product Name")
+        batch_no = st.text_input("Batch Number")
+        received = st.date_input("Received Date")
+        expired = st.date_input("Expiry Date")
+        paid = st.number_input("Amount Paid", min_value=0.0, step=0.01)
+        units = st.number_input("Total Units", min_value=0)
+        sold = st.number_input("Units Sold", min_value=0)
+        sold_amount = st.number_input("Sale Amount", min_value=0.0, step=0.01)
+        prescribed_by = st.text_input("Prescribed By")
+        submitted = st.form_submit_button("Add Stock")
+        if submitted:
+            st.session_state.stocks.append({
+                "name": name,
+                "batch_no": batch_no,
+                "received": str(received),
+                "expired": str(expired),
+                "paid": paid,
+                "units": units,
+                "sold": sold,
+                "sold_amount": sold_amount,
+                "prescribed_by": prescribed_by
+            })
+            save_data()
+            st.success("Stock added!")
+            safe_rerun()
+
+    if st.session_state.stocks:
+        st.dataframe(pd.DataFrame(st.session_state.stocks))
+
+def show_doctor_tracking():
+    st.title("👨‍⚕️ Doctor Tracking")
+    uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to bulk add doctors", type=["xlsx"])
+    if uploaded_file:
+        try:
+            df = pd.read_excel(uploaded_file, engine="openpyxl")
+            required_cols = {'name', 'clinic', 'phone', 'total_sales'}
+            if not required_cols.issubset(set(df.columns.str.lower())):
+                st.error(f"Excel missing required columns: {required_cols}")
+            else:
+                df = df.rename(columns=str.lower)
+                new_docs = df.to_dict(orient='records')
+                st.session_state.doctors.extend(new_docs)
+                save_data()
+                st.success(f"{len(new_docs)} doctor records added!")
+                safe_rerun()
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+
+    st.markdown("### Add Doctor Manually")
+    with st.form("add_doctor", clear_on_submit=True):
+        name = st.text_input("Doctor Name")
+        clinic = st.text_input("Clinic")
+        phone = st.text_input("Phone")
+        total_sales = st.number_input("Total Sales", min_value=0.0, step=0.01)
+        submitted = st.form_submit_button("Add Doctor")
+        if submitted:
+            st.session_state.doctors.append({
+                "name": name,
+                "clinic": clinic,
+                "phone": phone,
+                "total_sales": total_sales
+            })
+            save_data()
+            st.success("Doctor added!")
+            safe_rerun()
+
+    if st.session_state.doctors:
+        st.dataframe(pd.DataFrame(st.session_state.doctors))
 
 def show_dashboard():
     with st.sidebar:
@@ -205,20 +291,20 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-def show_stock_management():
-    st.info("Stock management UI placeholder")
-
-def show_doctor_tracking():
-    st.info("Doctor tracking UI placeholder")
-
 def show_analytics():
-    st.info("Analytics UI placeholder")
+    st.info("Analytics coming soon!")
 
 def show_alerts():
-    st.info("Alerts UI placeholder")
+    st.info("Alerts coming soon!")
 
 def show_reports():
-    st.info("Reports UI placeholder")
+    st.info("Reports coming soon!")
+
+def main():
+    if st.session_state.logged_in:
+        show_dashboard()
+    else:
+        show_login_page()
 
 if __name__ == "__main__":
     main()
