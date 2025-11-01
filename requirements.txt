@@ -3,4 +3,6 @@ pandas
 openpyxl
 plotly
 Pillow
-google-genai
+google-genai==0.17.4
+google-cloud-aiplatform==2.23.1
+protobuf==4.24.2
