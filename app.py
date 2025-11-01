@@ -8,32 +8,22 @@ from PIL import Image
 import base64
 import io
 
-# Safe rerun helper using experimental_rerun or session toggle
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
     else:
         st.session_state["_rerun_flag"] = not st.session_state.get("_rerun_flag", False)
 
-# Styling and page config
-st.set_page_config(
-    page_title="PharmaBiz Pro",
-    page_icon="💊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
-  .stButton>button {
-    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
-  }
+  .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
   h1 {color: #1e293b;}
   .stAlert {border-radius: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize all relevant session state variables
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_flag']:
     if key not in st.session_state:
         if key in ['logged_in', '_rerun_flag']:
@@ -41,54 +31,49 @@ for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_fla
         else:
             st.session_state[key] = []
 
-# Cache data loading for better performance
 @st.cache_data(show_spinner=False)
-def load_json_data(filepath):
+def load_json(filepath):
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             return json.load(f)
-    except Exception:
+    except:
         return []
 
+def save_json(data, filepath):
+    os.makedirs("data", exist_ok=True)
+    with open(filepath, "w") as f:
+        json.dump(data, f)
+
 def load_all_data():
-    os.makedirs('data', exist_ok=True)
-    st.session_state.users = load_json_data('data/users.json')
-    st.session_state.stocks = load_json_data('data/stocks.json')
-    st.session_state.doctors = load_json_data('data/doctors.json')
+    st.session_state.users = load_json("data/users.json")
+    st.session_state.stocks = load_json("data/stocks.json")
+    st.session_state.doctors = load_json("data/doctors.json")
 
-def save_data():
-    os.makedirs('data', exist_ok=True)
-    with open('data/users.json', 'w') as f:
-        json.dump(st.session_state.users, f)
-    with open('data/stocks.json', 'w') as f:
-        json.dump(st.session_state.stocks, f)
-    with open('data/doctors.json', 'w') as f:
-        json.dump(st.session_state.doctors, f)
-
-# Load data at app start
 load_all_data()
 
-# Registration with normalization and duplicate email check
+def save_data():
+    save_json(st.session_state.users, "data/users.json")
+    save_json(st.session_state.stocks, "data/stocks.json")
+    save_json(st.session_state.doctors, "data/doctors.json")
+
 def register_user(email, password, business_name):
     email = email.strip().lower()
     password = password.strip()
     business_name = business_name.strip()
 
-    # Check for duplicate email
     for user in st.session_state.users:
         if user['email'] == email:
-            st.warning("User already registered with this email.")
+            st.warning("User already registered.")
             return False
     st.session_state.users.append({
-        'email': email,
-        'password': password,
-        'business_name': business_name,
-        'created_at': datetime.now().isoformat()
+        "email": email,
+        "password": password,
+        "business_name": business_name,
+        "created_at": datetime.now().isoformat()
     })
     save_data()
     return True
 
-# Login with normalization
 def login_user(email, password):
     email = email.strip().lower()
     password = password.strip()
@@ -99,9 +84,8 @@ def login_user(email, password):
             return True
     return False
 
-# Google Imagen integration; assumes API key configured in env by Streamlit Cloud
 def generate_image_google(prompt):
-    genai.configure()  # API key picked from environment automatically
+    genai.configure()
     model = genai.GenerativeModel("models/imagen-2")
     try:
         response = model.generate_content(prompt)
@@ -112,9 +96,8 @@ def generate_image_google(prompt):
         st.error(f"Image generation failed: {e}")
         return None
 
-# Login page UI
 def show_login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
@@ -142,11 +125,95 @@ def show_login_page():
                 if business_name and email and password:
                     if register_user(email, password, business_name):
                         st.success("Registration successful! Please login.")
-                    # Warning shown inside register_user for duplicates
                 else:
                     st.error("Please fill all fields!")
 
-# Dashboard sidebar and page navigation
+def show_stock_management():
+    st.title("📦 Stock Management")
+    uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to add stocks in bulk", type=["xlsx"])
+    if uploaded_file:
+        try:
+            df = pd.read_excel(uploaded_file, engine='openpyxl')
+            required_cols = {'name', 'batch_no', 'received', 'expired', 'paid', 'units', 'sold', 'sold_amount', 'prescribed_by'}
+            if not required_cols.issubset(set(df.columns.str.lower())):
+                st.error(f"Excel file missing required columns: {required_cols}")
+            else:
+                df = df.rename(columns=str.lower)
+                new_stocks = df.to_dict(orient='records')
+                st.session_state.stocks.extend(new_stocks)
+                save_data()
+                st.success(f"{len(new_stocks)} stock records added successfully!")
+                safe_rerun()
+        except Exception as e:
+            st.error(f"Error processing Excel file: {e}")
+
+    st.markdown("### Add Stock Manually")
+    with st.form("add_stock_form", clear_on_submit=True):
+        name = st.text_input("Product Name")
+        batch_no = st.text_input("Batch Number")
+        received = st.date_input("Received Date")
+        expired = st.date_input("Expiry Date")
+        paid = st.number_input("Amount Paid", min_value=0.0, step=0.01)
+        units = st.number_input("Total Units", min_value=0)
+        sold = st.number_input("Units Sold", min_value=0)
+        sold_amount = st.number_input("Sale Amount", min_value=0.0, step=0.01)
+        prescribed_by = st.text_input("Prescribed By")
+        submitted = st.form_submit_button("Add Stock")
+        if submitted:
+            new_stock = {
+                "name": name, "batch_no": batch_no, "received": str(received), "expired": str(expired),
+                "paid": paid, "units": units, "sold": sold, "sold_amount": sold_amount,
+                "prescribed_by": prescribed_by
+            }
+            st.session_state.stocks.append(new_stock)
+            save_data()
+            st.success("Stock added successfully!")
+            safe_rerun()
+
+    if st.session_state.stocks:
+        st.dataframe(pd.DataFrame(st.session_state.stocks))
+
+def show_doctor_tracking():
+    st.title("👨‍⚕️ Doctor Tracking")
+    uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to add doctors in bulk", type=["xlsx"])
+    if uploaded_file:
+        try:
+            df = pd.read_excel(uploaded_file, engine='openpyxl')
+            required_cols = {'name', 'clinic', 'phone', 'total_sales'}
+            if not required_cols.issubset(set(df.columns.str.lower())):
+                st.error(f"Excel file missing required columns: {required_cols}")
+            else:
+                df = df.rename(columns=str.lower)
+                new_docs = df.to_dict(orient='records')
+                st.session_state.doctors.extend(new_docs)
+                save_data()
+                st.success(f"{len(new_docs)} doctor records added successfully!")
+                safe_rerun()
+        except Exception as e:
+            st.error(f"Error processing Excel file: {e}")
+
+    st.markdown("### Add Doctor Manually")
+    with st.form("add_doctor_form", clear_on_submit=True):
+        name = st.text_input("Doctor Name")
+        clinic = st.text_input("Clinic")
+        phone = st.text_input("Phone")
+        total_sales = st.number_input("Total Sales", min_value=0.0, step=0.01)
+        submitted = st.form_submit_button("Add Doctor")
+        if submitted:
+            new_doc = {
+                "name": name,
+                "clinic": clinic,
+                "phone": phone,
+                "total_sales": total_sales
+            }
+            st.session_state.doctors.append(new_doc)
+            save_data()
+            st.success("Doctor added successfully!")
+            safe_rerun()
+
+    if st.session_state.doctors:
+        st.dataframe(pd.DataFrame(st.session_state.doctors))
+
 def show_dashboard():
     with st.sidebar:
         st.markdown("### 💊 PharmaBiz Pro")
@@ -186,7 +253,6 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
-# Dashboard main page
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
     total_stock = sum(s.get("units", 0) for s in st.session_state.stocks)
@@ -200,15 +266,11 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-# Placeholder page implementations for navigation completeness
-def show_stock_management(): st.info("Stock Management coming soon...")
-def show_doctor_tracking(): st.info("Doctor Tracking coming soon...")
-def show_analytics(): st.info("Analytics coming soon...")
-def show_alerts(): st.info("Alerts coming soon...")
-def show_ai_generator(): st.info("AI Generator coming soon...")
-def show_reports(): st.info("Reports coming soon...")
+def show_analytics(): st.info("Analytics feature coming soon.")
+def show_alerts(): st.info("Alerts feature coming soon.")
+def show_ai_generator(): st.info("AI Generator feature coming soon.")
+def show_reports(): st.info("Reports feature coming soon.")
 
-# Main entrypoint
 def main():
     if st.session_state.logged_in:
         show_dashboard()
