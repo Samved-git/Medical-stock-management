@@ -9,6 +9,18 @@ import io
 import base64
 import google.generativeai as genai
 
+# Correct rerun import and function for backward compatibility
+try:
+    # Streamlit >=1.12+
+    st.experimental_rerun
+    def rerun():
+        st.experimental_rerun()
+except AttributeError:
+    # Older versions fallback
+    from streamlit.runtime.scriptrunner.script_runner import RerunException
+    def rerun():
+        raise RerunException(suppress_st_warning=True)
+
 # Page Configuration
 st.set_page_config(
     page_title="PharmaBiz Pro",
@@ -117,7 +129,7 @@ def show_login_page():
             if st.button("Login", type="primary"):
                 if login_user(email, password):
                     st.success("Login successful!")
-                    st.experimental_rerun()
+                    rerun()
                     return
                 else:
                     st.error("Invalid credentials!")
@@ -144,7 +156,7 @@ def show_dashboard():
         st.markdown("---")
         if st.button("🚪 Logout", type="secondary"):
             st.session_state.logged_in = False
-            st.experimental_rerun()
+            rerun()
 
     if menu == "📊 Dashboard":
         show_dashboard_page()
@@ -206,7 +218,7 @@ def show_stock_management():
                 st.session_state.stocks.append(stock)
                 save_data()
                 st.success("✓ Stock added!")
-                st.experimental_rerun()
+                rerun()
     st.markdown("### 📋 Stock Inventory")
     if st.session_state.stocks:
         df = pd.DataFrame(st.session_state.stocks)
@@ -230,7 +242,7 @@ def show_doctor_tracking():
                     st.session_state.doctors.append(doctor)
                     save_data()
                     st.success("✓ Doctor added!")
-                    st.experimental_rerun()
+                    rerun()
     if st.session_state.doctors:
         st.markdown("### 📋 Doctor List")
         df = pd.DataFrame(st.session_state.doctors)
