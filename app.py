@@ -8,30 +8,37 @@ from PIL import Image
 import base64
 import io
 
-# Helper to trigger rerun: uses experimental_rerun if available else toggles session_state key
+# Safe rerun helper: calls st.experimental_rerun() if exists, else toggles dummy key to force rerun
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
     else:
-        st.session_state._rerun_toggle = not st.session_state.get("_rerun_toggle", False)
+        st.session_state["_rerun_toggle"] = not st.session_state.get("_rerun_toggle", False)
 
-# Page Setup and Styles
+# Page setup and style
 st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
-  .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
+  .stButton>button {
+    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
+  }
   h1 {color: #1e293b;}
   .stAlert {border-radius: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session states
+# Initialize session state variables
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_toggle']:
     if key not in st.session_state:
-        st.session_state[key] = False if key == 'logged_in' or key == '_rerun_toggle' else []
+        if key == 'logged_in':
+            st.session_state[key] = False
+        elif key == '_rerun_toggle':
+            st.session_state[key] = False
+        else:
+            st.session_state[key] = []
 
-# Data persistence
+# Data persistence functions
 def load_data():
     os.makedirs('data', exist_ok=True)
     try:
@@ -61,9 +68,14 @@ def save_data():
 
 load_data()
 
-# Authentication functions
+# Authentication helpers
 def register_user(email, password, business_name):
-    st.session_state.users.append({'email': email, 'password': password, 'business_name': business_name, 'created_at': datetime.now().isoformat()})
+    st.session_state.users.append({
+        'email': email,
+        'password': password,
+        'business_name': business_name,
+        'created_at': datetime.now().isoformat()
+    })
     save_data()
 
 def login_user(email, password):
@@ -74,11 +86,11 @@ def login_user(email, password):
             return True
     return False
 
-# Google Imagen AI image generation
+# Google Imagen Image Generation
 def generate_image_google(prompt):
     api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
-        st.error("Missing GOOGLE_API_KEY in .streamlit/secrets.toml")
+        st.error("GOOGLE_API_KEY missing in secrets.toml")
         return None
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("models/imagen-2")
@@ -91,7 +103,7 @@ def generate_image_google(prompt):
         st.error(f"Image generation failed: {e}")
         return None
 
-# Login page UI
+# Login Page
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -123,7 +135,7 @@ def show_login_page():
                 else:
                     st.error("Please fill all fields!")
 
-# Dashboard UI and navigation
+# Dashboard and navigation UI
 def show_dashboard():
     with st.sidebar:
         st.markdown("### 💊 PharmaBiz Pro")
@@ -163,13 +175,13 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
-# Dashboard page
+# Dashboard page example
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
     total_stock = sum(s.get("units", 0) for s in st.session_state.stocks)
     total_sold = sum(s.get("sold", 0) for s in st.session_state.stocks)
-    total_revenue = sum(s.get("sold_amount", 0) for s in st.session_state.stocks)
-    total_invested = sum(s.get("paid", 0) for s in st.session_state.stocks)
+    total_revenue = sum(s.get("sold_amount", 0.0) for s in st.session_state.stocks)
+    total_invested = sum(s.get("paid", 0.0) for s in st.session_state.stocks)
     profit = total_revenue - total_invested
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Stock Units", f"{total_stock:,}")
@@ -177,14 +189,15 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-# Placeholder pages
-def show_stock_management(): st.info("Stock Management page coming soon!")
-def show_doctor_tracking(): st.info("Doctor Tracking page coming soon!")
-def show_analytics(): st.info("Analytics page coming soon!")
-def show_alerts(): st.info("Alerts page coming soon!")
-def show_ai_generator(): st.info("AI Generator page coming soon!")
-def show_reports(): st.info("Reports page coming soon!")
+# Placeholder other pages
+def show_stock_management(): st.info("Stock Management coming soon!")
+def show_doctor_tracking(): st.info("Doctor Tracking coming soon!")
+def show_analytics(): st.info("Analytics coming soon!")
+def show_alerts(): st.info("Alerts coming soon!")
+def show_ai_generator(): st.info("AI Generator coming soon!")
+def show_reports(): st.info("Reports coming soon!")
 
+# Main app entry point
 def main():
     if st.session_state.logged_in:
         show_dashboard()
