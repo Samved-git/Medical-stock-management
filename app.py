@@ -87,7 +87,7 @@ def login_user(email, password):
 
 def generate_chat_response(prompt):
     genai.configure()
-    model_name = "models/gemini-2.5-chat"
+    model_name = "models/gemini-2.5-turbo"
     try:
         model = genai.GenerativeModel(model_name)
         response = model.generate_content(prompt)
@@ -127,7 +127,7 @@ def show_login_page():
 
 def show_ai_chatbot():
     st.title("🤖 AI Chatbot Assistant")
-    st.markdown("Ask any questions about pharmaceutical business or general queries.")
+    st.markdown("Ask any questions about your pharmaceutical business or general queries.")
 
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
