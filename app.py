@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from google import genai
 
-# Initialize Google GenAI client once (ensure GOOGLE_API_KEY env var is set)
+# Initialize Google GenAI client (needs GOOGLE_API_KEY in environment)
 client = genai.Client()
 
 def safe_rerun():
@@ -14,7 +14,12 @@ def safe_rerun():
     else:
         st.session_state["_rerun_flag"] = not st.session_state.get("_rerun_flag", False)
 
-st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="PharmaBiz Pro",
+    page_icon="💊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 st.markdown("""
 <style>
@@ -30,9 +35,14 @@ st.markdown("""
 # Initialize session state keys
 for key in ['logged_in','user_email','users','stocks','doctors','chat_history','_rerun_flag']:
     if key not in st.session_state:
-        st.session_state[key] = False if key in ['logged_in','_rerun_flag'] else ([] if key != 'chat_history' else [])
+        if key in ['logged_in','_rerun_flag']:
+            st.session_state[key] = False
+        elif key == 'chat_history':
+            st.session_state[key] = []
+        else:
+            st.session_state[key] = []
 
-# JSON data load/save helpers
+# Helpers for JSON data
 def load_json(filepath):
     try:
         with open(filepath, "r") as f:
@@ -57,7 +67,7 @@ def save_data():
 
 load_all_data()
 
-# Authentication functions
+# Authentication Functions
 def register_user(email, password, business_name):
     email = email.strip().lower()
     password = password.strip()
@@ -84,19 +94,19 @@ def login_user(email, password):
             return True
     return False
 
-# Generate AI chat response using google-genai client
+# Chat generation using official google-genai Client
 def generate_chat_response(prompt):
     try:
         response = client.chat.completions.create(
             model="models/gemini-1.5-turbo",
-            messages=[{"author":"user", "content": prompt}],
+            messages=[{"author": "user", "content": prompt}],
         )
         return response.choices[0].message.content
     except Exception as e:
         st.error(f"AI chat generation failed: {e}")
         return "Sorry, I couldn't process that."
 
-# UI functions follow
+# UI Functions
 
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -104,7 +114,7 @@ def show_login_page():
         st.title("💊 PharmaBiz Pro")
         tab1, tab2 = st.tabs(["Login", "Register"])
         with tab1:
-            st.subheader("Login to Your Account")
+            st.subheader("Login")
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
@@ -115,7 +125,7 @@ def show_login_page():
                     else:
                         st.error("Invalid credentials!")
         with tab2:
-            st.subheader("Create New Account")
+            st.subheader("Register")
             business_name = st.text_input("Business Name", key="reg_business")
             email = st.text_input("Email", key="reg_email")
             password = st.text_input("Password", type="password", key="reg_password")
@@ -138,12 +148,14 @@ def show_ai_chatbot():
     with st.form(key="chat_form", clear_on_submit=True):
         user_input = st.text_input("Enter your question here:")
         submitted = st.form_submit_button("Send")
+
     if submitted and user_input.strip():
         add_message("user", user_input)
         with st.spinner("AI is thinking..."):
-            ai_reply = generate_chat_response(user_input)
-        add_message("assistant", ai_reply)
+            reply = generate_chat_response(user_input)
+        add_message("assistant", reply)
         safe_rerun()
+
     for msg in st.session_state.chat_history:
         if msg['role'] == 'user':
             st.markdown(f"**You:** {msg['content']}")
@@ -156,15 +168,15 @@ def show_stock_management():
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
-            required_cols = {'name', 'batch_no', 'received', 'expired', 'paid', 'units', 'sold', 'sold_amount', 'prescribed_by'}
+            required_cols = {'name','batch_no','received','expired','paid','units','sold','sold_amount','prescribed_by'}
             if not required_cols.issubset(df.columns.str.lower()):
-                st.error(f"Missing columns: {required_cols}")
+                st.error(f"Excel missing columns: {required_cols}")
             else:
                 df.columns = df.columns.str.lower()
                 new_stocks = df.to_dict(orient='records')
                 st.session_state.stocks.extend(new_stocks)
                 save_data()
-                st.success(f"Added {len(new_stocks)} stock records")
+                st.success(f"Added {len(new_stocks)} stocks")
                 safe_rerun()
         except Exception as e:
             st.error(f"Failed to process file: {e}")
@@ -196,6 +208,7 @@ def show_stock_management():
             save_data()
             st.success("Manually added stock")
             safe_rerun()
+
     if st.session_state.stocks:
         st.dataframe(pd.DataFrame(st.session_state.stocks))
 
@@ -205,15 +218,15 @@ def show_doctor_tracking():
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
-            required_cols = {'name', 'clinic', 'phone', 'total_sales'}
+            required_cols = {'name','clinic','phone','total_sales'}
             if not required_cols.issubset(df.columns.str.lower()):
-                st.error(f"Missing columns: {required_cols}")
+                st.error(f"Excel missing columns: {required_cols}")
             else:
                 df.columns = df.columns.str.lower()
                 new_docs = df.to_dict(orient='records')
                 st.session_state.doctors.extend(new_docs)
                 save_data()
-                st.success(f"Added {len(new_docs)} doctor records")
+                st.success(f"Added {len(new_docs)} doctors")
                 safe_rerun()
         except Exception as e:
             st.error(f"Failed to process file: {e}")
@@ -235,6 +248,7 @@ def show_doctor_tracking():
             save_data()
             st.success("Manually added doctor")
             safe_rerun()
+
     if st.session_state.doctors:
         st.dataframe(pd.DataFrame(st.session_state.doctors))
 
@@ -243,20 +257,25 @@ def show_dashboard():
         st.markdown("### 💊 PharmaBiz Pro")
         st.markdown(f"User: {st.session_state.user_email}")
         st.markdown("---")
-        menu = st.radio("Navigation", [
-            "📊 Dashboard",
-            "📦 Stock Management",
-            "👨‍⚕️ Doctor Tracking",
-            "📈 Analytics",
-            "🚨 Alerts",
-            "🎨 AI Generator",
-            "📄 Reports"
-        ], index=0)
+        menu = st.radio(
+            "Navigation",
+            [
+                "📊 Dashboard",
+                "📦 Stock Management",
+                "👨‍⚕️ Doctor Tracking",
+                "📈 Analytics",
+                "🚨 Alerts",
+                "🎨 AI Generator",
+                "📄 Reports"
+            ],
+            index=0,
+        )
         st.markdown("---")
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.user_email = ""
             safe_rerun()
+
     if menu == "📊 Dashboard":
         show_dashboard_page()
     elif menu == "📦 Stock Management":
