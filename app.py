@@ -9,7 +9,15 @@ import io
 import base64
 import google.generativeai as genai
 
-# Page setup
+# Safe rerun helper: tries st.experimental_rerun(), else no-op
+def rerun():
+    if hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+    else:
+        # Fall back: show notice to user — manual refresh required
+        st.warning("Please refresh the page to continue.")
+
+# Page Config and CSS
 st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
@@ -20,45 +28,39 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state vars
+# Session state init
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors']:
     if key not in st.session_state:
-        st.session_state[key] = False if key=='logged_in' else []
+        st.session_state[key] = False if key == "logged_in" else []
 
-# Data load/save helpers
+# Load/save data helpers
 def load_data():
-    os.makedirs('data', exist_ok=True)
+    os.makedirs("data", exist_ok=True)
     try:
-        if os.path.exists('data/users.json'):
-            with open('data/users.json', 'r') as f:
-                st.session_state.users = json.load(f)
-    except:
-        st.session_state.users = []
+        with open("data/users.json", "r") as f:
+            st.session_state.users = json.load(f)
+    except: st.session_state.users = []
     try:
-        if os.path.exists('data/stocks.json'):
-            with open('data/stocks.json', 'r') as f:
-                st.session_state.stocks = json.load(f)
-    except:
-        st.session_state.stocks = []
+        with open("data/stocks.json", "r") as f:
+            st.session_state.stocks = json.load(f)
+    except: st.session_state.stocks = []
     try:
-        if os.path.exists('data/doctors.json'):
-            with open('data/doctors.json', 'r') as f:
-                st.session_state.doctors = json.load(f)
-    except:
-        st.session_state.doctors = []
+        with open("data/doctors.json", "r") as f:
+            st.session_state.doctors = json.load(f)
+    except: st.session_state.doctors = []
 
 def save_data():
-    os.makedirs('data', exist_ok=True)
-    with open('data/users.json', 'w') as f:
+    os.makedirs("data", exist_ok=True)
+    with open("data/users.json", "w") as f:
         json.dump(st.session_state.users, f)
-    with open('data/stocks.json', 'w') as f:
+    with open("data/stocks.json", "w") as f:
         json.dump(st.session_state.stocks, f)
-    with open('data/doctors.json', 'w') as f:
+    with open("data/doctors.json", "w") as f:
         json.dump(st.session_state.doctors, f)
 
 load_data()
 
-# Register and login logic
+# Authentication
 def register_user(email, password, business_name):
     user = {'email': email, 'password': password, 'business_name': business_name, 'created_at': datetime.now().isoformat()}
     st.session_state.users.append(user)
@@ -72,7 +74,7 @@ def login_user(email, password):
             return True
     return False
 
-# Google Imagen AI generation
+# Google Imagen AI generator
 def generate_image_google(prompt):
     api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
@@ -90,9 +92,9 @@ def generate_image_google(prompt):
         st.error(f"Image generation failed: {e}")
         return None
 
-# Login UI
+# Login page UI
 def show_login_page():
-    col1, col2, col3 = st.columns([1,2,1])
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
@@ -105,8 +107,8 @@ def show_login_page():
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
                 if login_user(email, password):
-                    st.success("Login successful! Redirecting...")
-                    # No rerun call here; UI will update on session_state change
+                    st.success("Login successful!")
+                    rerun()
                 else:
                     st.error("Invalid credentials!")
 
@@ -122,18 +124,18 @@ def show_login_page():
                 else:
                     st.error("Please fill all fields!")
 
-# Dashboard UI
+# Dashboard UI and Navigation
 def show_dashboard():
     with st.sidebar:
         st.markdown("### 💊 PharmaBiz Pro")
-        st.markdown(f"User: {st.session_state.user_email}")
+        st.markdown(f"**User:** {st.session_state.user_email}")
         st.markdown("---")
         menu = st.radio("Navigation", ["📊 Dashboard","📦 Stock Management","👨‍⚕️ Doctor Tracking","📈 Analytics","🚨 Alerts","🎨 AI Generator","📄 Reports"])
         st.markdown("---")
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.user_email = ""
-            st.success("Logged out successfully.")
+            rerun()
 
     if menu == "📊 Dashboard":
         show_dashboard_page()
@@ -150,6 +152,7 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
+# Example Dashboard page
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
     total_stock = sum([s['units'] for s in st.session_state.stocks])
@@ -163,8 +166,9 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-# Add implementations for other UI pages similarly.
+# (Other pages implementation omitted for brevity: use your current code here.)
 
+# Main app control
 def main():
     if st.session_state.logged_in:
         show_dashboard()
