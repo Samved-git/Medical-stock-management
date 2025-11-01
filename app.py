@@ -34,7 +34,6 @@ for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_histo
         else:
             st.session_state[key] = []
 
-# Data loading/saving helpers
 def load_json(filepath):
     try:
         with open(filepath, "r") as f:
@@ -59,7 +58,6 @@ def save_data():
 
 load_all_data()
 
-# Authentication helpers
 def register_user(email, password, business_name):
     email = email.strip().lower()
     password = password.strip()
@@ -87,22 +85,20 @@ def login_user(email, password):
             return True
     return False
 
-# Google Imagen chat response generator - fixed to use GenerativeModel
+# Updated chat response generator with supported model
 def generate_chat_response(prompt):
-    genai.configure()  # API key assumed in env var
+    genai.configure()  # Reads api key from environment
+    model_name = "models/text-bison-001"
     try:
-        model = genai.GenerativeModel("models/chat-bison-001")
+        model = genai.GenerativeModel(model_name)
         response = model.generate_content(prompt)
         return response.candidates[0].content
-    except Exception:
-        # Fallback to text-bison if chat-bison-001 unavailable
-        model = genai.GenerativeModel("models/text-bison-001")
-        response = model.generate_content(prompt)
-        return response.candidates[0].content
+    except Exception as e:
+        st.error(f"AI chat generation failed: {e}")
+        return "Sorry, I couldn't process that."
 
-# login page UI
 def show_login_page():
-    col1, col2, col3 = st.columns([1,2,1])
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
@@ -133,10 +129,9 @@ def show_login_page():
                 else:
                     st.error("Please fill all fields!")
 
-# AI chatbot UI
 def show_ai_chatbot():
     st.title("🤖 AI Chatbot Assistant")
-    st.markdown("Ask questions about your pharmaceutical business or any other queries.")
+    st.markdown("Ask questions about your pharmaceutical business or general queries.")
 
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
@@ -151,17 +146,14 @@ def show_ai_chatbot():
         with st.spinner("AI is thinking..."):
             ai_reply = generate_chat_response(user_input)
         add_message("assistant", ai_reply)
-        # Clear input box by resetting session state key
         st.session_state.user_input = ""
 
-    # Display chat history
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
             st.markdown(f"**You:** {msg['content']}")
         else:
             st.markdown(f"**AI:** {msg['content']}")
 
-# Stock Management page (upload and manual add, as before)
 def show_stock_management():
     st.title("📦 Stock Management")
     uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to bulk add stocks", type=["xlsx"])
@@ -212,7 +204,6 @@ def show_stock_management():
     if st.session_state.stocks:
         st.dataframe(pd.DataFrame(st.session_state.stocks))
 
-# Doctor Tracking page (upload and manual add)
 def show_doctor_tracking():
     st.title("👨‍⚕️ Doctor Tracking")
     uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to bulk add doctors", type=["xlsx"])
@@ -267,9 +258,9 @@ def show_dashboard():
                 "📈 Analytics",
                 "🚨 Alerts",
                 "🎨 AI Generator",
-                "📄 Reports"
+                "📄 Reports",
             ],
-            index=0
+            index=0,
         )
         st.markdown("---")
         if st.button("Logout"):
@@ -305,9 +296,14 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-def show_analytics(): st.info("Analytics coming soon!")
-def show_alerts(): st.info("Alerts coming soon!")
-def show_reports(): st.info("Reports coming soon!")
+def show_analytics():
+    st.info("Analytics coming soon!")
+
+def show_alerts():
+    st.info("Alerts coming soon!")
+
+def show_reports():
+    st.info("Reports coming soon!")
 
 def main():
     if st.session_state.logged_in:
