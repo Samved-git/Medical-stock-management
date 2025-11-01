@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from google import genai
 
-# Initialize GenAI client once (must have GOOGLE_API_KEY env var set externally)
+# Initialize Google GenAI client once (ensure GOOGLE_API_KEY env var is set)
 client = genai.Client()
 
 def safe_rerun():
@@ -27,17 +27,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Session state init
+# Initialize session state keys
 for key in ['logged_in','user_email','users','stocks','doctors','chat_history','_rerun_flag']:
     if key not in st.session_state:
-        if key in ['logged_in','_rerun_flag']:
-            st.session_state[key] = False
-        elif key == 'chat_history':
-            st.session_state[key] = []
-        else:
-            st.session_state[key] = []
+        st.session_state[key] = False if key in ['logged_in','_rerun_flag'] else ([] if key != 'chat_history' else [])
 
-# Load and Save helpers
+# JSON data load/save helpers
 def load_json(filepath):
     try:
         with open(filepath, "r") as f:
@@ -62,13 +57,13 @@ def save_data():
 
 load_all_data()
 
-# Authentication
+# Authentication functions
 def register_user(email, password, business_name):
     email = email.strip().lower()
     password = password.strip()
     business_name = business_name.strip()
     if any(u['email'] == email for u in st.session_state.users):
-        st.warning("User with this email already registered.")
+        st.warning("User already registered.")
         return False
     st.session_state.users.append({
         "email": email,
@@ -89,7 +84,7 @@ def login_user(email, password):
             return True
     return False
 
-# AI chat generation using gemini-1.5-turbo and google-genai client
+# Generate AI chat response using google-genai client
 def generate_chat_response(prompt):
     try:
         response = client.chat.completions.create(
@@ -101,15 +96,15 @@ def generate_chat_response(prompt):
         st.error(f"AI chat generation failed: {e}")
         return "Sorry, I couldn't process that."
 
-# Pages and UI
+# UI functions follow
 
 def show_login_page():
-    col1, col2, col3 = st.columns([1,2,1])
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("💊 PharmaBiz Pro")
         tab1, tab2 = st.tabs(["Login", "Register"])
         with tab1:
-            st.subheader("Login")
+            st.subheader("Login to Your Account")
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
@@ -120,20 +115,20 @@ def show_login_page():
                     else:
                         st.error("Invalid credentials!")
         with tab2:
-            st.subheader("Register")
+            st.subheader("Create New Account")
             business_name = st.text_input("Business Name", key="reg_business")
             email = st.text_input("Email", key="reg_email")
             password = st.text_input("Password", type="password", key="reg_password")
             if st.button("Register"):
                 if business_name and email and password:
                     if register_user(email, password, business_name):
-                        st.success("Registration successful! Please log in.")
+                        st.success("Registration successful! Please login.")
                 else:
                     st.error("Please fill all fields!")
 
 def show_ai_chatbot():
     st.title("🤖 AI Chatbot Assistant")
-    st.markdown("Ask questions about your pharmaceutical business or general queries.")
+    st.markdown("Ask any questions about your pharmaceutical business or general queries.")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
@@ -143,14 +138,12 @@ def show_ai_chatbot():
     with st.form(key="chat_form", clear_on_submit=True):
         user_input = st.text_input("Enter your question here:")
         submitted = st.form_submit_button("Send")
-
     if submitted and user_input.strip():
         add_message("user", user_input)
         with st.spinner("AI is thinking..."):
-            reply = generate_chat_response(user_input)
-        add_message("assistant", reply)
+            ai_reply = generate_chat_response(user_input)
+        add_message("assistant", ai_reply)
         safe_rerun()
-
     for msg in st.session_state.chat_history:
         if msg['role'] == 'user':
             st.markdown(f"**You:** {msg['content']}")
@@ -160,7 +153,6 @@ def show_ai_chatbot():
 def show_stock_management():
     st.title("📦 Stock Management")
     uploaded_file = st.file_uploader("Upload Excel (.xlsx) to bulk add stocks", type=["xlsx"])
-
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
@@ -204,14 +196,12 @@ def show_stock_management():
             save_data()
             st.success("Manually added stock")
             safe_rerun()
-
     if st.session_state.stocks:
         st.dataframe(pd.DataFrame(st.session_state.stocks))
 
 def show_doctor_tracking():
     st.title("👨‍⚕️ Doctor Tracking")
     uploaded_file = st.file_uploader("Upload Excel (.xlsx) to bulk add doctors", type=["xlsx"])
-
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
@@ -245,7 +235,6 @@ def show_doctor_tracking():
             save_data()
             st.success("Manually added doctor")
             safe_rerun()
-
     if st.session_state.doctors:
         st.dataframe(pd.DataFrame(st.session_state.doctors))
 
@@ -268,7 +257,6 @@ def show_dashboard():
             st.session_state.logged_in = False
             st.session_state.user_email = ""
             safe_rerun()
-
     if menu == "📊 Dashboard":
         show_dashboard_page()
     elif menu == "📦 Stock Management":
