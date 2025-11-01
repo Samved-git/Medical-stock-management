@@ -8,14 +8,15 @@ from PIL import Image
 import base64
 import io
 
+# Safe rerun helper: uses experimental_rerun if available, else toggles dummy key
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
     else:
-        st.session_state["_rerun_toggle"] = not st.session_state.get("_rerun_toggle", False)
+        st.session_state["_rerun_flag"] = not st.session_state.get("_rerun_flag", False)
 
+# Page configuration and styling
 st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
-
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
@@ -27,10 +28,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_toggle']:
+# Initialize session variables
+for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_flag']:
     if key not in st.session_state:
-        st.session_state[key] = False if key in ['logged_in', '_rerun_toggle'] else []
+        if key == 'logged_in' or key == '_rerun_flag':
+            st.session_state[key] = False
+        else:
+            st.session_state[key] = []
 
+# Data loading & saving helpers
 def load_data():
     os.makedirs('data', exist_ok=True)
     try:
@@ -60,6 +66,7 @@ def save_data():
 
 load_data()
 
+# Authentication logic
 def register_user(email, password, business_name):
     st.session_state.users.append({
         'email': email,
@@ -77,8 +84,9 @@ def login_user(email, password):
             return True
     return False
 
+# Google Imagen image generation (uses environment-injected API key by Streamlit Cloud)
 def generate_image_google(prompt):
-    genai.configure()  # API key picked via environment by Streamlit Cloud
+    genai.configure()  # API key picked up from environment variables managed by Streamlit Cloud
     model = genai.GenerativeModel("models/imagen-2")
     try:
         response = model.generate_content(prompt)
@@ -89,11 +97,13 @@ def generate_image_google(prompt):
         st.error(f"Image generation failed: {e}")
         return None
 
+# Login page UI
 def show_login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
+
         tab1, tab2 = st.tabs(["Login", "Register"])
 
         with tab1:
@@ -119,20 +129,25 @@ def show_login_page():
                 else:
                     st.error("Please fill all fields!")
 
+# Dashboard + Navigation sidebar
 def show_dashboard():
     with st.sidebar:
         st.markdown("### 💊 PharmaBiz Pro")
         st.markdown(f"User: {st.session_state.user_email}")
         st.markdown("---")
-        menu = st.radio("Navigation", [
-            "📊 Dashboard",
-            "📦 Stock Management",
-            "👨‍⚕️ Doctor Tracking",
-            "📈 Analytics",
-            "🚨 Alerts",
-            "🎨 AI Generator",
-            "📄 Reports",
-        ], index=0)
+        menu = st.radio(
+            "Navigation",
+            [
+                "📊 Dashboard",
+                "📦 Stock Management",
+                "👨‍⚕️ Doctor Tracking",
+                "📈 Analytics",
+                "🚨 Alerts",
+                "🎨 AI Generator",
+                "📄 Reports"
+            ],
+            index=0
+        )
         st.markdown("---")
         if st.button("Logout"):
             st.session_state.logged_in = False
@@ -154,6 +169,7 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
+# Dashboard page example
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
     total_stock = sum(s.get("units", 0) for s in st.session_state.stocks)
@@ -167,12 +183,13 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-def show_stock_management(): st.info("Stock Management Coming Soon")
-def show_doctor_tracking(): st.info("Doctor Tracking Coming Soon")
-def show_analytics(): st.info("Analytics Coming Soon")
-def show_alerts(): st.info("Alerts Coming Soon")
-def show_ai_generator(): st.info("AI Generator Coming Soon")
-def show_reports(): st.info("Reports Coming Soon")
+# Placeholder pages that you can expand
+def show_stock_management(): st.info("Stock Management page coming soon!")
+def show_doctor_tracking(): st.info("Doctor Tracking page coming soon!")
+def show_analytics(): st.info("Analytics page coming soon!")
+def show_alerts(): st.info("Alerts page coming soon!")
+def show_ai_generator(): st.info("AI Generator page coming soon!")
+def show_reports(): st.info("Reports page coming soon!")
 
 def main():
     if st.session_state.logged_in:
