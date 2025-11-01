@@ -9,7 +9,7 @@ import io
 import base64
 import google.generativeai as genai
 
-# Page config and CSS
+# Page setup
 st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
@@ -20,15 +20,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state variables
+# Initialize session state vars
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors']:
     if key not in st.session_state:
-        if key == 'logged_in':
-            st.session_state[key] = False
-        else:
-            st.session_state[key] = []
+        st.session_state[key] = False if key=='logged_in' else []
 
-# Data Persistence
+# Data load/save helpers
 def load_data():
     os.makedirs('data', exist_ok=True)
     try:
@@ -61,7 +58,7 @@ def save_data():
 
 load_data()
 
-# Authentication
+# Register and login logic
 def register_user(email, password, business_name):
     user = {'email': email, 'password': password, 'business_name': business_name, 'created_at': datetime.now().isoformat()}
     st.session_state.users.append(user)
@@ -79,7 +76,7 @@ def login_user(email, password):
 def generate_image_google(prompt):
     api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
-        st.error("Missing GOOGLE_API_KEY in .streamlit/secrets.toml")
+        st.error("Missing GOOGLE_API_KEY in secrets")
         return None
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("models/imagen-2")
@@ -90,12 +87,12 @@ def generate_image_google(prompt):
         image = Image.open(io.BytesIO(image_bytes))
         return image
     except Exception as e:
-        st.error(f"Image generation failed: {str(e)}")
+        st.error(f"Image generation failed: {e}")
         return None
 
-# Login Page
+# Login UI
 def show_login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
@@ -108,8 +105,8 @@ def show_login_page():
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
                 if login_user(email, password):
-                    st.success("Login successful!")
-                    st.experimental_rerun()  # instant rerun to show dashboard
+                    st.success("Login successful! Redirecting...")
+                    # No rerun call here; UI will update on session_state change
                 else:
                     st.error("Invalid credentials!")
 
@@ -125,17 +122,18 @@ def show_login_page():
                 else:
                     st.error("Please fill all fields!")
 
-# Dashboard and navigation
+# Dashboard UI
 def show_dashboard():
     with st.sidebar:
         st.markdown("### 💊 PharmaBiz Pro")
-        st.markdown(f"**User:** {st.session_state.user_email}")
+        st.markdown(f"User: {st.session_state.user_email}")
         st.markdown("---")
-        menu = st.radio("Navigation", ["📊 Dashboard", "📦 Stock Management", "👨‍⚕️ Doctor Tracking", "📈 Analytics", "🚨 Alerts", "🎨 AI Generator", "📄 Reports"])
+        menu = st.radio("Navigation", ["📊 Dashboard","📦 Stock Management","👨‍⚕️ Doctor Tracking","📈 Analytics","🚨 Alerts","🎨 AI Generator","📄 Reports"])
         st.markdown("---")
         if st.button("Logout"):
             st.session_state.logged_in = False
-            st.experimental_rerun()  # instant rerun to login page
+            st.session_state.user_email = ""
+            st.success("Logged out successfully.")
 
     if menu == "📊 Dashboard":
         show_dashboard_page()
@@ -152,7 +150,6 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
-# Dashboard example page
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
     total_stock = sum([s['units'] for s in st.session_state.stocks])
@@ -166,13 +163,13 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-# Implement other pages (stock management, doctor tracking, analytics, alerts, AI generator, reports) similarly
+# Add implementations for other UI pages similarly.
 
 def main():
-    if not st.session_state.logged_in:
-        show_login_page()
-    else:
+    if st.session_state.logged_in:
         show_dashboard()
+    else:
+        show_login_page()
 
 if __name__ == "__main__":
     main()
