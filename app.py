@@ -9,9 +9,9 @@ import io
 import base64
 import google.generativeai as genai
 
-# Correct rerun import and function for backward compatibility
+# Rerun helper for compatibility
 try:
-    # Streamlit >=1.12+
+    # New Streamlit versions
     st.experimental_rerun
     def rerun():
         st.experimental_rerun()
@@ -19,7 +19,7 @@ except AttributeError:
     # Older versions fallback
     from streamlit.runtime.scriptrunner.script_runner import RerunException
     def rerun():
-        raise RerunException(suppress_st_warning=True)
+        raise RerunException()
 
 # Page Configuration
 st.set_page_config(
@@ -111,8 +111,6 @@ def generate_image_google(prompt):
     except Exception as e:
         st.error(f"Failed to generate or display image: {e}")
         return None
-
-# UI Functions
 
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
