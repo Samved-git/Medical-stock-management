@@ -9,33 +9,29 @@ import io
 import base64
 import google.generativeai as genai
 
-# Helper to force rerun if supported
+# Helper rerun function: calls experimental_rerun if it exists, else sets a dummy session flag to force rerun
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
     else:
-        st.warning("Please refresh the page to complete login.")
+        # Fallback: toggle a dummy session_state key to force Streamlit rerun
+        st.session_state["_rerun_toggle"] = not st.session_state.get("_rerun_toggle", False)
 
-# Page setup & styles
+# Page configuration and styling
 st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
     .main {background-color: #f8fafc;}
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        height: 3em;
-        font-weight: 600;
-    }
+    .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
     h1 {color: #1e293b;}
     .stAlert {border-radius: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state keys
-for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors']:
+# Initialize state variables
+for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', '_rerun_toggle']:
     if key not in st.session_state:
-        st.session_state[key] = False if key == 'logged_in' else []
+        st.session_state[key] = False if key == 'logged_in' else [] if key in ['users', 'stocks', 'doctors'] else False
 
 # Data persistence helpers
 def load_data():
@@ -67,7 +63,7 @@ def save_data():
 
 load_data()
 
-# Auth helpers
+# Authentication helpers
 def register_user(email, password, business_name):
     st.session_state.users.append({'email': email, 'password': password, 'business_name': business_name, 'created_at': datetime.now().isoformat()})
     save_data()
@@ -80,7 +76,7 @@ def login_user(email, password):
             return True
     return False
 
-# Google Imagen AI generation (unchanged)
+# Google Generative AI Image generation
 def generate_image_google(prompt):
     api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
@@ -112,36 +108,49 @@ def show_login_page():
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
                 if login_user(email, password):
-                    st.success("Login successful!")
-                    safe_rerun()  # rerun or ask for refresh
+                    st.success("Login successful! Redirecting...")
+                    safe_rerun()
                 else:
                     st.error("Invalid credentials!")
 
         with tab2:
             st.subheader("Create New Account")
-            business = st.text_input("Business Name", key="reg_business")
+            business_name = st.text_input("Business Name", key="reg_business")
             email = st.text_input("Email", key="reg_email")
             password = st.text_input("Password", type="password", key="reg_password")
             if st.button("Register"):
-                if business and email and password:
-                    register_user(email, password, business)
+                if business_name and email and password:
+                    register_user(email, password, business_name)
                     st.success("Registration successful! Please login.")
                 else:
                     st.error("Please fill all fields!")
 
-# Dashboard and navigation
+# Dashboard UI
 def show_dashboard():
     with st.sidebar:
         st.markdown("### 💊 PharmaBiz Pro")
-        st.markdown(f"**User:** {st.session_state.user_email}")
+        st.markdown(f"User: {st.session_state.user_email}")
         st.markdown("---")
-        menu = st.radio("Navigation", ["📊 Dashboard","📦 Stock Management","👨‍⚕️ Doctor Tracking","📈 Analytics","🚨 Alerts","🎨 AI Generator","📄 Reports"], index=0)
+        menu = st.radio(
+            "Navigation",
+            [
+                "📊 Dashboard",
+                "📦 Stock Management",
+                "👨‍⚕️ Doctor Tracking",
+                "📈 Analytics",
+                "🚨 Alerts",
+                "🎨 AI Generator",
+                "📄 Reports",
+            ],
+            index=0,
+        )
         st.markdown("---")
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.user_email = ""
-            safe_rerun()  # rerun or warn
+            safe_rerun()
 
+    # Page switch
     if menu == "📊 Dashboard":
         show_dashboard_page()
     elif menu == "📦 Stock Management":
@@ -157,13 +166,13 @@ def show_dashboard():
     elif menu == "📄 Reports":
         show_reports()
 
-# Example Dashboard Page
+# Sample Dashboard page
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
-    total_stock = sum([s.get("units",0) for s in st.session_state.stocks])
-    total_sold = sum([s.get("sold",0) for s in st.session_state.stocks])
-    total_revenue = sum([s.get("sold_amount",0) for s in st.session_state.stocks])
-    total_invested = sum([s.get("paid",0) for s in st.session_state.stocks])
+    total_stock = sum(s.get("units", 0) for s in st.session_state.stocks)
+    total_sold = sum(s.get("sold", 0) for s in st.session_state.stocks)
+    total_revenue = sum(s.get("sold_amount", 0) for s in st.session_state.stocks)
+    total_invested = sum(s.get("paid", 0) for s in st.session_state.stocks)
     profit = total_revenue - total_invested
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Stock Units", f"{total_stock:,}")
@@ -171,41 +180,15 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-# Dummy placeholders for other pages
-def show_stock_management():
-    st.title("📦 Stock Management")
-    st.info("Stock management section.")
+# Placeholders for other pages (implement your code here)
+def show_stock_management(): st.info("Stock Management Coming Soon!")
+def show_doctor_tracking(): st.info("Doctor Tracking Coming Soon!")
+def show_analytics(): st.info("Analytics Coming Soon!")
+def show_alerts(): st.info("Alerts Coming Soon!")
+def show_ai_generator(): st.info("AI Generator Coming Soon!")
+def show_reports(): st.info("Reports Coming Soon!")
 
-def show_doctor_tracking():
-    st.title("👨‍⚕️ Doctor Tracking")
-    st.info("Doctor tracking section.")
-
-def show_analytics():
-    st.title("📈 Analytics")
-    st.info("Analytics section.")
-
-def show_alerts():
-    st.title("🚨 Expiry Alerts")
-    st.info("Alerts section.")
-
-def show_ai_generator():
-    st.title("🎨 AI Content Generator")
-    prompt = st.text_area("Enter prompt:", placeholder="E.g., promotional image of medicine named ASDFG (Pain killer)")
-    if st.button("Generate"):
-        if prompt:
-            image = generate_image_google(prompt)
-            if image:
-                st.image(image, caption="AI Generated Image")
-            else:
-                st.error("Failed to generate image.")
-        else:
-            st.warning("Please enter a prompt.")
-
-def show_reports():
-    st.title("📄 Reports")
-    st.info("Reports & insights section.")
-
-# Main control
+# Main app entry
 def main():
     if st.session_state.logged_in:
         show_dashboard()
