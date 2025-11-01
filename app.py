@@ -3,7 +3,10 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-from google import genai
+from google.genai_v1 import ChatCompletionClient
+
+# Initialize the client once
+client = ChatCompletionClient()
 
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
@@ -13,9 +16,25 @@ def safe_rerun():
 
 st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", initial_sidebar_state="expanded")
 
+st.markdown("""
+<style>
+  .main {background-color: #f8fafc;}
+  .stButton>button {
+    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
+  }
+  h1 {color: #1e293b;}
+  .stAlert {border-radius: 8px;}
+</style>
+""", unsafe_allow_html=True)
+
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
     if key not in st.session_state:
-        st.session_state[key] = False if key in ['logged_in', '_rerun_flag'] else ([] if key != 'chat_history' else [])
+        if key in ['logged_in', '_rerun_flag']:
+            st.session_state[key] = False
+        elif key == 'chat_history':
+            st.session_state[key] = []
+        else:
+            st.session_state[key] = []
 
 def load_json(filepath):
     try:
@@ -68,12 +87,10 @@ def login_user(email, password):
             return True
     return False
 
-client = genai.Client()  # initialize once
-
 def generate_chat_response(prompt):
     try:
-        response = client.chat_completions.create(
-            model="gemini-1.5-turbo",
+        response = client.create_chat_completion(
+            model="models/gemini-1.5-turbo",
             messages=[{"author": "user", "content": prompt}],
         )
         return response.choices[0].message.content
@@ -112,6 +129,7 @@ def show_login_page():
 def show_ai_chatbot():
     st.title("🤖 AI Chatbot Assistant")
     st.markdown("Ask any questions about your pharmaceutical business or general queries.")
+
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
@@ -121,19 +139,21 @@ def show_ai_chatbot():
     with st.form(key="chat_form", clear_on_submit=True):
         user_input = st.text_input("Enter your question here:")
         submitted = st.form_submit_button("Send")
+
     if submitted and user_input.strip():
         add_message("user", user_input)
         with st.spinner("AI is thinking..."):
             ai_reply = generate_chat_response(user_input)
         add_message("assistant", ai_reply)
         safe_rerun()
+
     for msg in st.session_state.chat_history:
         if msg["role"] == "user":
             st.markdown(f"**You:** {msg['content']}")
         else:
             st.markdown(f"**AI:** {msg['content']}")
 
-# Implement your other feature pages here (stock, doctor, dashboard, etc.) as before
+# Other UI functions like show_stock_management, show_doctor_tracking, show_dashboard remain same as before
 
 def main():
     if st.session_state.logged_in:
@@ -155,7 +175,7 @@ def show_dashboard():
                 "📈 Analytics",
                 "🚨 Alerts",
                 "🎨 AI Generator",
-                "📄 Reports"
+                "📄 Reports",
             ],
             index=0,
         )
@@ -164,6 +184,7 @@ def show_dashboard():
             st.session_state.logged_in = False
             st.session_state.user_email = ""
             safe_rerun()
+
     if menu == "📊 Dashboard":
         show_dashboard_page()
     elif menu == "📦 Stock Management":
@@ -192,22 +213,20 @@ def show_dashboard_page():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
-# Implement other feature placeholders...
-
 def show_stock_management():
-    st.info("Stock management coming soon.")
+    st.info("Stock Management UI here")
 
 def show_doctor_tracking():
-    st.info("Doctor tracking coming soon.")
+    st.info("Doctor Tracking UI here")
 
 def show_analytics():
-    st.info("Analytics coming soon.")
+    st.info("Analytics UI here")
 
 def show_alerts():
-    st.info("Alerts coming soon.")
+    st.info("Alerts UI here")
 
 def show_reports():
-    st.info("Reports coming soon.")
+    st.info("Reports UI here")
 
 if __name__ == "__main__":
     main()
