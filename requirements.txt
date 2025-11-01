@@ -3,4 +3,4 @@ pandas
 openpyxl
 plotly
 Pillow
-google-generativeai
+google-genai
