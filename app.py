@@ -33,12 +33,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Initialize Session State
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.user_email = ""
-    st.session_state.users = []
-    st.session_state.stocks = []
-    st.session_state.doctors = []
+for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors']:
+    if key not in st.session_state:
+        st.session_state[key] = False if key == 'logged_in' else [] if key in ['users','stocks','doctors'] else ""
 
 # Data Persistence
 def load_data():
@@ -88,7 +85,7 @@ def login_user(email, password):
             return True
     return False
 
-# AI Image Generation using Google Generative AI API
+# AI Image Generation via Google Generative AI (Imagen)
 def generate_image_google(prompt):
     api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
@@ -103,21 +100,16 @@ def generate_image_google(prompt):
         st.error(f"Failed to generate or display image: {e}")
         return None
 
-# Main App
-def main():
-    if not st.session_state.logged_in:
-        show_login_page()
-    else:
-        show_dashboard()
+# UI Functions
 
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
-        
+
         tab1, tab2 = st.tabs(["Login", "Register"])
-        
+
         with tab1:
             st.subheader("Login to Your Account")
             email = st.text_input("Email", key="login_email")
@@ -126,9 +118,10 @@ def show_login_page():
                 if login_user(email, password):
                     st.success("Login successful!")
                     st.experimental_rerun()
+                    return
                 else:
                     st.error("Invalid credentials!")
-        
+
         with tab2:
             st.subheader("Create New Account")
             reg_business = st.text_input("Business Name", key="reg_business")
@@ -146,7 +139,7 @@ def show_dashboard():
         st.markdown("### 💊 PharmaBiz Pro")
         st.markdown(f"**User:** {st.session_state.user_email}")
         st.markdown("---")
-        
+
         menu = st.radio("Navigation", ["📊 Dashboard", "📦 Stock Management", "👨‍⚕️ Doctor Tracking", "📈 Analytics", "🚨 Alerts", "🎨 AI Generator", "📄 Reports"], key="menu")
         st.markdown("---")
         if st.button("🚪 Logout", type="secondary"):
@@ -207,7 +200,7 @@ def show_stock_management():
         prescribed_by = st.selectbox("Prescribed By", [""] + [d['name'] for d in st.session_state.doctors])
         if st.button("Add Stock", type="primary"):
             if name and batch_no:
-                stock = {'id': len(st.session_state.stocks) + 1, 'name': name, 'batch_no': batch_no, 
+                stock = {'id': len(st.session_state.stocks) + 1, 'name': name, 'batch_no': batch_no,
                          'received': received.isoformat(), 'expired': expired.isoformat(), 'paid': paid,
                          'units': units, 'sold': sold, 'sold_amount': sold_amount, 'prescribed_by': prescribed_by}
                 st.session_state.stocks.append(stock)
@@ -232,7 +225,7 @@ def show_doctor_tracking():
             doc_sales = st.number_input("Total Sales (₹)", min_value=0)
             if st.button("Add Doctor", type="primary"):
                 if doc_name:
-                    doctor = {'id': len(st.session_state.doctors) + 1, 'name': doc_name, 
+                    doctor = {'id': len(st.session_state.doctors) + 1, 'name': doc_name,
                               'clinic': doc_clinic, 'phone': doc_phone, 'total_sales': doc_sales}
                     st.session_state.doctors.append(doctor)
                     save_data()
@@ -308,6 +301,12 @@ def show_reports():
             invested = sum([s['paid'] for s in st.session_state.stocks])
             st.metric("Revenue", f"₹{revenue:,.0f}")
             st.metric("Profit", f"₹{revenue - invested:,.0f}")
+
+def main():
+    if not st.session_state.logged_in:
+        show_login_page()
+    else:
+        show_dashboard()
 
 if __name__ == "__main__":
     main()
