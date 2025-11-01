@@ -5,6 +5,9 @@ import os
 from datetime import datetime
 from google import genai
 
+# Initialize GenAI client once (must have GOOGLE_API_KEY env var set externally)
+client = genai.Client()
+
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
@@ -16,21 +19,25 @@ st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", 
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
-  .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
+  .stButton>button {
+    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
+  }
   h1 {color: #1e293b;}
   .stAlert {border-radius: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
+# Session state init
+for key in ['logged_in','user_email','users','stocks','doctors','chat_history','_rerun_flag']:
     if key not in st.session_state:
-        if key in ['logged_in', '_rerun_flag']:
+        if key in ['logged_in','_rerun_flag']:
             st.session_state[key] = False
         elif key == 'chat_history':
             st.session_state[key] = []
         else:
             st.session_state[key] = []
 
+# Load and Save helpers
 def load_json(filepath):
     try:
         with open(filepath, "r") as f:
@@ -55,14 +62,14 @@ def save_data():
 
 load_all_data()
 
+# Authentication
 def register_user(email, password, business_name):
     email = email.strip().lower()
     password = password.strip()
     business_name = business_name.strip()
-    for user in st.session_state.users:
-        if user['email'] == email:
-            st.warning("User already registered.")
-            return False
+    if any(u['email'] == email for u in st.session_state.users):
+        st.warning("User with this email already registered.")
+        return False
     st.session_state.users.append({
         "email": email,
         "password": password,
@@ -75,33 +82,34 @@ def register_user(email, password, business_name):
 def login_user(email, password):
     email = email.strip().lower()
     password = password.strip()
-    for user in st.session_state.users:
-        if user['email'] == email and user['password'] == password:
+    for u in st.session_state.users:
+        if u['email'] == email and u['password'] == password:
             st.session_state.logged_in = True
             st.session_state.user_email = email
             return True
     return False
 
-client = genai.Client()
-
+# AI chat generation using gemini-1.5-turbo and google-genai client
 def generate_chat_response(prompt):
     try:
         response = client.chat.completions.create(
             model="models/gemini-1.5-turbo",
-            messages=[{"author": "user", "content": prompt}],
+            messages=[{"author":"user", "content": prompt}],
         )
         return response.choices[0].message.content
     except Exception as e:
         st.error(f"AI chat generation failed: {e}")
         return "Sorry, I couldn't process that."
 
+# Pages and UI
+
 def show_login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.title("💊 PharmaBiz Pro")
         tab1, tab2 = st.tabs(["Login", "Register"])
         with tab1:
-            st.subheader("Login to Your Account")
+            st.subheader("Login")
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
             if st.button("Login"):
@@ -112,20 +120,20 @@ def show_login_page():
                     else:
                         st.error("Invalid credentials!")
         with tab2:
-            st.subheader("Create New Account")
+            st.subheader("Register")
             business_name = st.text_input("Business Name", key="reg_business")
             email = st.text_input("Email", key="reg_email")
             password = st.text_input("Password", type="password", key="reg_password")
             if st.button("Register"):
                 if business_name and email and password:
                     if register_user(email, password, business_name):
-                        st.success("Registration successful! Please login.")
+                        st.success("Registration successful! Please log in.")
                 else:
                     st.error("Please fill all fields!")
 
 def show_ai_chatbot():
     st.title("🤖 AI Chatbot Assistant")
-    st.markdown("Ask any questions about your pharmaceutical business or general queries.")
+    st.markdown("Ask questions about your pharmaceutical business or general queries.")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
@@ -139,34 +147,35 @@ def show_ai_chatbot():
     if submitted and user_input.strip():
         add_message("user", user_input)
         with st.spinner("AI is thinking..."):
-            ai_reply = generate_chat_response(user_input)
-        add_message("assistant", ai_reply)
+            reply = generate_chat_response(user_input)
+        add_message("assistant", reply)
         safe_rerun()
 
     for msg in st.session_state.chat_history:
-        if msg["role"] == "user":
+        if msg['role'] == 'user':
             st.markdown(f"**You:** {msg['content']}")
         else:
             st.markdown(f"**AI:** {msg['content']}")
 
 def show_stock_management():
     st.title("📦 Stock Management")
-    uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to bulk add stocks", type=["xlsx"])
+    uploaded_file = st.file_uploader("Upload Excel (.xlsx) to bulk add stocks", type=["xlsx"])
+
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
             required_cols = {'name', 'batch_no', 'received', 'expired', 'paid', 'units', 'sold', 'sold_amount', 'prescribed_by'}
-            if not required_cols.issubset(set(df.columns.str.lower())):
-                st.error(f"Excel missing required columns: {required_cols}")
+            if not required_cols.issubset(df.columns.str.lower()):
+                st.error(f"Missing columns: {required_cols}")
             else:
-                df = df.rename(columns=str.lower)
+                df.columns = df.columns.str.lower()
                 new_stocks = df.to_dict(orient='records')
                 st.session_state.stocks.extend(new_stocks)
                 save_data()
-                st.success(f"{len(new_stocks)} stock records added!")
+                st.success(f"Added {len(new_stocks)} stock records")
                 safe_rerun()
         except Exception as e:
-            st.error(f"Error processing file: {e}")
+            st.error(f"Failed to process file: {e}")
 
     st.markdown("### Add Stock Manually")
     with st.form("add_stock", clear_on_submit=True):
@@ -193,7 +202,7 @@ def show_stock_management():
                 "prescribed_by": prescribed_by
             })
             save_data()
-            st.success("Stock added!")
+            st.success("Manually added stock")
             safe_rerun()
 
     if st.session_state.stocks:
@@ -201,22 +210,23 @@ def show_stock_management():
 
 def show_doctor_tracking():
     st.title("👨‍⚕️ Doctor Tracking")
-    uploaded_file = st.file_uploader("Upload Excel file (.xlsx) to bulk add doctors", type=["xlsx"])
+    uploaded_file = st.file_uploader("Upload Excel (.xlsx) to bulk add doctors", type=["xlsx"])
+
     if uploaded_file:
         try:
             df = pd.read_excel(uploaded_file, engine="openpyxl")
             required_cols = {'name', 'clinic', 'phone', 'total_sales'}
-            if not required_cols.issubset(set(df.columns.str.lower())):
-                st.error(f"Excel missing required columns: {required_cols}")
+            if not required_cols.issubset(df.columns.str.lower()):
+                st.error(f"Missing columns: {required_cols}")
             else:
-                df = df.rename(columns=str.lower)
+                df.columns = df.columns.str.lower()
                 new_docs = df.to_dict(orient='records')
                 st.session_state.doctors.extend(new_docs)
                 save_data()
-                st.success(f"{len(new_docs)} doctor records added!")
+                st.success(f"Added {len(new_docs)} doctor records")
                 safe_rerun()
         except Exception as e:
-            st.error(f"Error processing file: {e}")
+            st.error(f"Failed to process file: {e}")
 
     st.markdown("### Add Doctor Manually")
     with st.form("add_doctor", clear_on_submit=True):
@@ -233,7 +243,7 @@ def show_doctor_tracking():
                 "total_sales": total_sales
             })
             save_data()
-            st.success("Doctor added!")
+            st.success("Manually added doctor")
             safe_rerun()
 
     if st.session_state.doctors:
@@ -244,19 +254,15 @@ def show_dashboard():
         st.markdown("### 💊 PharmaBiz Pro")
         st.markdown(f"User: {st.session_state.user_email}")
         st.markdown("---")
-        menu = st.radio(
-            "Navigation",
-            [
-                "📊 Dashboard",
-                "📦 Stock Management",
-                "👨‍⚕️ Doctor Tracking",
-                "📈 Analytics",
-                "🚨 Alerts",
-                "🎨 AI Generator",
-                "📄 Reports",
-            ],
-            index=0
-        )
+        menu = st.radio("Navigation", [
+            "📊 Dashboard",
+            "📦 Stock Management",
+            "👨‍⚕️ Doctor Tracking",
+            "📈 Analytics",
+            "🚨 Alerts",
+            "🎨 AI Generator",
+            "📄 Reports"
+        ], index=0)
         st.markdown("---")
         if st.button("Logout"):
             st.session_state.logged_in = False
