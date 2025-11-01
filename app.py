@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
 
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
@@ -16,18 +16,18 @@ st.set_page_config(page_title="PharmaBiz Pro", page_icon="💊", layout="wide", 
 st.markdown("""
 <style>
   .main {background-color: #f8fafc;}
-  .stButton>button {width: 100%; border-radius: 8px; height: 3em; font-weight: 600;}
+  .stButton>button {
+    width: 100%; border-radius: 8px; height: 3em; font-weight: 600;
+  }
   h1 {color: #1e293b;}
   .stAlert {border-radius: 8px;}
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state keys
 for key in ['logged_in', 'user_email', 'users', 'stocks', 'doctors', 'chat_history', '_rerun_flag']:
     if key not in st.session_state:
         st.session_state[key] = False if key in ['logged_in', '_rerun_flag'] else ([] if key != 'chat_history' else [])
 
-# JSON load/save helpers
 def load_json(filepath):
     try:
         with open(filepath, "r") as f:
@@ -52,7 +52,6 @@ def save_data():
 
 load_all_data()
 
-# Authentication
 def register_user(email, password, business_name):
     email = email.strip().lower()
     password = password.strip()
@@ -80,19 +79,19 @@ def login_user(email, password):
             return True
     return False
 
-# AI Chat generation using supported Gemini model
+# Initialize Google GenAI client (assumes GOOGLE_API_KEY env variable is set)
+client = genai.Client()
+
 def generate_chat_response(prompt):
-    genai.configure()
-    model_name = "models/gemini-1.5-turbo"
     try:
-        model = genai.GenerativeModel(model_name)
-        response = model.generate_content(prompt)
-        return response.candidates[0].content
+        response = client.chat.completions.create(
+            model="gemini-1.5-turbo",
+            messages=[{"author": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content
     except Exception as e:
         st.error(f"AI chat generation failed: {e}")
         return "Sorry, I couldn't process that."
-
-# UI Components
 
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -254,9 +253,9 @@ def show_dashboard():
                 "📈 Analytics",
                 "🚨 Alerts",
                 "🎨 AI Generator",
-                "📄 Reports",
+                "📄 Reports"
             ],
-            index=0,
+            index=0
         )
         st.markdown("---")
         if st.button("Logout"):
