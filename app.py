@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import os
 from PIL import Image
 import io
 import base64
+import google.generativeai as genai
 
 # Page Configuration
 st.set_page_config(
@@ -42,15 +42,25 @@ if 'logged_in' not in st.session_state:
 
 # Data Persistence
 def load_data():
-    if os.path.exists('data/users.json'):
-        with open('data/users.json', 'r') as f:
-            st.session_state.users = json.load(f)
-    if os.path.exists('data/stocks.json'):
-        with open('data/stocks.json', 'r') as f:
-            st.session_state.stocks = json.load(f)
-    if os.path.exists('data/doctors.json'):
-        with open('data/doctors.json', 'r') as f:
-            st.session_state.doctors = json.load(f)
+    os.makedirs('data', exist_ok=True)
+    try:
+        if os.path.exists('data/users.json'):
+            with open('data/users.json', 'r') as f:
+                st.session_state.users = json.load(f)
+    except:
+        st.session_state.users = []
+    try:
+        if os.path.exists('data/stocks.json'):
+            with open('data/stocks.json', 'r') as f:
+                st.session_state.stocks = json.load(f)
+    except:
+        st.session_state.stocks = []
+    try:
+        if os.path.exists('data/doctors.json'):
+            with open('data/doctors.json', 'r') as f:
+                st.session_state.doctors = json.load(f)
+    except:
+        st.session_state.doctors = []
 
 def save_data():
     os.makedirs('data', exist_ok=True)
@@ -78,6 +88,21 @@ def login_user(email, password):
             return True
     return False
 
+# AI Image Generation using Google Generative AI API
+def generate_image_google(prompt):
+    api_key = st.secrets["GOOGLE_API_KEY"]
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("models/imagen-2")
+    response = model.generate_content(prompt)
+    try:
+        image_data = response.candidates[0].content.parts[0].inline_data.data
+        image_bytes = base64.b64decode(image_data)
+        image = Image.open(io.BytesIO(image_bytes))
+        return image
+    except Exception as e:
+        st.error(f"Failed to generate or display image: {e}")
+        return None
+
 # Main App
 def main():
     if not st.session_state.logged_in:
@@ -87,7 +112,6 @@ def main():
 
 def show_login_page():
     col1, col2, col3 = st.columns([1, 2, 1])
-    
     with col2:
         st.markdown("<h1 style='text-align: center;'>💊 PharmaBiz Pro</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #64748b;'>Professional Pharmaceutical Business Management</p>", unsafe_allow_html=True)
@@ -98,11 +122,10 @@ def show_login_page():
             st.subheader("Login to Your Account")
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
-            
             if st.button("Login", type="primary"):
                 if login_user(email, password):
                     st.success("Login successful!")
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     st.error("Invalid credentials!")
         
@@ -111,7 +134,6 @@ def show_login_page():
             reg_business = st.text_input("Business Name", key="reg_business")
             reg_email = st.text_input("Email", key="reg_email")
             reg_password = st.text_input("Password", type="password", key="reg_password")
-            
             if st.button("Register", type="primary"):
                 if reg_business and reg_email and reg_password:
                     register_user(reg_email, reg_password, reg_business)
@@ -126,12 +148,11 @@ def show_dashboard():
         st.markdown("---")
         
         menu = st.radio("Navigation", ["📊 Dashboard", "📦 Stock Management", "👨‍⚕️ Doctor Tracking", "📈 Analytics", "🚨 Alerts", "🎨 AI Generator", "📄 Reports"], key="menu")
-        
         st.markdown("---")
         if st.button("🚪 Logout", type="secondary"):
             st.session_state.logged_in = False
-            st.rerun()
-    
+            st.experimental_rerun()
+
     if menu == "📊 Dashboard":
         show_dashboard_page()
     elif menu == "📦 Stock Management":
@@ -149,13 +170,11 @@ def show_dashboard():
 
 def show_dashboard_page():
     st.title("📊 Dashboard Overview")
-    
     total_stock = sum([s['units'] for s in st.session_state.stocks])
     total_sold = sum([s['sold'] for s in st.session_state.stocks])
     total_revenue = sum([s['sold_amount'] for s in st.session_state.stocks])
     total_invested = sum([s['paid'] for s in st.session_state.stocks])
     profit = total_revenue - total_invested
-    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Total Stock Units", f"{total_stock:,}")
@@ -165,9 +184,7 @@ def show_dashboard_page():
         st.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     with col4:
         st.metric("Profit", f"₹{profit:,.0f}")
-    
     st.markdown("---")
-    
     if st.session_state.stocks:
         st.markdown("### 📋 Recent Activity")
         recent_df = pd.DataFrame(st.session_state.stocks[-5:])
@@ -175,7 +192,6 @@ def show_dashboard_page():
 
 def show_stock_management():
     st.title("📦 Stock Management")
-    
     with st.expander("➕ Add New Stock", expanded=True):
         col1, col2 = st.columns(2)
         with col1:
@@ -188,19 +204,16 @@ def show_stock_management():
             units = st.number_input("Total Units", min_value=0)
             sold = st.number_input("Units Sold", min_value=0)
             sold_amount = st.number_input("Sale Amount (₹)", min_value=0)
-        
         prescribed_by = st.selectbox("Prescribed By", [""] + [d['name'] for d in st.session_state.doctors])
-        
         if st.button("Add Stock", type="primary"):
             if name and batch_no:
                 stock = {'id': len(st.session_state.stocks) + 1, 'name': name, 'batch_no': batch_no, 
-                        'received': received.isoformat(), 'expired': expired.isoformat(), 'paid': paid,
-                        'units': units, 'sold': sold, 'sold_amount': sold_amount, 'prescribed_by': prescribed_by}
+                         'received': received.isoformat(), 'expired': expired.isoformat(), 'paid': paid,
+                         'units': units, 'sold': sold, 'sold_amount': sold_amount, 'prescribed_by': prescribed_by}
                 st.session_state.stocks.append(stock)
                 save_data()
                 st.success("✓ Stock added!")
-                st.rerun()
-    
+                st.experimental_rerun()
     st.markdown("### 📋 Stock Inventory")
     if st.session_state.stocks:
         df = pd.DataFrame(st.session_state.stocks)
@@ -210,7 +223,6 @@ def show_stock_management():
 
 def show_doctor_tracking():
     st.title("👨‍⚕️ Doctor Tracking")
-    
     col1, col2 = st.columns(2)
     with col1:
         with st.expander("➕ Add Doctor", expanded=True):
@@ -218,16 +230,14 @@ def show_doctor_tracking():
             doc_clinic = st.text_input("Clinic")
             doc_phone = st.text_input("Phone")
             doc_sales = st.number_input("Total Sales (₹)", min_value=0)
-            
             if st.button("Add Doctor", type="primary"):
                 if doc_name:
                     doctor = {'id': len(st.session_state.doctors) + 1, 'name': doc_name, 
-                            'clinic': doc_clinic, 'phone': doc_phone, 'total_sales': doc_sales}
+                              'clinic': doc_clinic, 'phone': doc_phone, 'total_sales': doc_sales}
                     st.session_state.doctors.append(doctor)
                     save_data()
                     st.success("✓ Doctor added!")
-                    st.rerun()
-    
+                    st.experimental_rerun()
     if st.session_state.doctors:
         st.markdown("### 📋 Doctor List")
         df = pd.DataFrame(st.session_state.doctors)
@@ -235,13 +245,10 @@ def show_doctor_tracking():
 
 def show_analytics():
     st.title("📈 Analytics")
-    
     if not st.session_state.stocks:
         st.info("No data available")
         return
-    
     df = pd.DataFrame(st.session_state.stocks)
-    
     col1, col2 = st.columns(2)
     with col1:
         fig = px.bar(df, x='name', y='sold', title="Product Sales")
@@ -254,7 +261,6 @@ def show_alerts():
     st.title("🚨 Expiry Alerts")
     today = datetime.now()
     expiring = []
-    
     for stock in st.session_state.stocks:
         try:
             expiry = datetime.fromisoformat(stock['expired'])
@@ -263,7 +269,6 @@ def show_alerts():
                 expiring.append((stock, days))
         except:
             pass
-    
     if expiring:
         st.warning("🔴 Products Expiring Soon")
         for stock, days in expiring:
@@ -274,18 +279,18 @@ def show_alerts():
 def show_ai_generator():
     st.title("🎨 AI Content Generator")
     st.info("Generate images and videos for your business")
-    
-    prompt = st.text_area("Enter prompt:", placeholder="E.g., pharmacy interior")
-    
+    prompt = st.text_area("Enter prompt:", placeholder="E.g., pharmacy interior, promotional image of medicine named ASDFG (Pain killer)")
     if st.button("Generate", type="primary"):
         if prompt:
-            with st.spinner("Generating..."):
-                st.success("✓ Content generated (demo)")
-                st.image("https://via.placeholder.com/512x512/4F46E5/FFFFFF?text=AI+Generated", caption="AI Image")
+            with st.spinner("Generating with Google Imagen..."):
+                image = generate_image_google(prompt)
+                if image:
+                    st.image(image, caption="AI Generated Image (Google Imagen)")
+                else:
+                    st.warning("No image generated. Try a different prompt.")
 
 def show_reports():
     st.title("📄 Reports & Insights")
-    
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("### 🤖 AI Recommendations")
@@ -296,7 +301,6 @@ def show_reports():
         4. Maintain optimal stock levels
         5. Track profit margins
         """)
-    
     with col2:
         st.markdown("### 📊 Business Metrics")
         if st.session_state.stocks:
