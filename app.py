@@ -164,7 +164,7 @@ def page_doctor():
     if uploaded:
         try:
             df = pd.read_excel(uploaded, engine="openpyxl")
-            required = {'name', 'clinic', 'phone', 'total_sales', 'subscribed_products'}
+            required = {'name', 'clinic', 'phone', 'total_sales', 'subscribed_products', 'total_units_bought'}
             if not required.issubset(df.columns.str.lower()):
                 st.error(f"Need columns: {required}")
             else:
@@ -186,67 +186,29 @@ def page_doctor():
         phone = st.text_input("Phone")
         total_sales = st.number_input("Total Sales", min_value=0.0)
         subscribed_products = st.text_input("Subscribed Products (comma separated)")
+        total_units_input = st.number_input("Total Units Bought", min_value=0) # <-- User can input manually
         submit = st.form_submit_button("Add")
         if submit:
             products_list = [p.strip() for p in subscribed_products.split(",") if p.strip()] if subscribed_products else []
-
-            # Calculate total units bought for this doctor
-            total_units_bought = 0
-            if 'stocks' in st.session_state:
-                df_stocks = pd.DataFrame(st.session_state.stocks)
-                if 'prescribed_by' not in df_stocks.columns:
-                    df_stocks['prescribed_by'] = ''
-                df_stocks['prescribed_by'] = df_stocks['prescribed_by'].fillna('').str.strip().str.lower()
-                doc_name_norm = name.strip().lower()
-                for prod in products_list:
-                    prod_norm = prod.lower()
-                    filtered = df_stocks[
-                        (df_stocks['prescribed_by'] == doc_name_norm) & (df_stocks['name'].str.lower() == prod_norm)
-                    ]
-                    total_units_bought += filtered['units'].sum() if not filtered.empty else 0
 
             st.session_state.doctors.append({
                 "name": name,
                 "clinic": clinic,
                 "phone": phone,
                 "total_sales": total_sales,
-                "subscribed_products": products_list
+                "subscribed_products": products_list,
+                "total_units_bought": int(total_units_input)
             })
             save_all()
 
-            st.success(f"Doctor added! Total Units Bought: {int(total_units_bought)}")
+            st.success(f"Doctor added! Total Units Bought: {int(total_units_input)}")
             safe_rerun()
 
-    if st.session_state.doctors and st.session_state.stocks:
+    if st.session_state.doctors:
         df_doctors = pd.DataFrame(st.session_state.doctors)
-        df_stocks = pd.DataFrame(st.session_state.stocks)
-
-        if 'prescribed_by' not in df_stocks.columns:
-            df_stocks['prescribed_by'] = ''
-        df_stocks['prescribed_by'] = df_stocks['prescribed_by'].fillna('').str.strip().str.lower()
-
-        total_units_bought = {}
-        for idx, doc_row in df_doctors.iterrows():
-            doc_name_norm = str(doc_row['name']).strip().lower()
-            subscribed_list = doc_row.get('subscribed_products', [])
-            if not isinstance(subscribed_list, list):
-                subscribed_list = []
-            units_sum = 0
-            for prod in subscribed_list:
-                prod_norm = prod.lower()
-                filtered = df_stocks[
-                    (df_stocks['prescribed_by'] == doc_name_norm) & (df_stocks['name'].str.lower() == prod_norm)
-                ]
-                units_sum += filtered['units'].sum() if not filtered.empty else 0
-            total_units_bought[doc_row['name']] = units_sum
-
-        df_doctors['total_units_bought'] = df_doctors['name'].map(total_units_bought).fillna(0).astype(int)
-
         if 'subscribed_products' in df_doctors.columns:
             df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(
-                lambda x: ", ".join(x) if isinstance(x, list) else ""
-            )
-
+                lambda x: ", ".join(x) if isinstance(x, list) else "")
         st.dataframe(df_doctors[['name', 'clinic', 'phone', 'total_sales', 'subscribed_products', 'total_units_bought']])
 
 def page_dashboard():
