@@ -2,10 +2,11 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from datetime import datetime
+from datetime import datetime, date
 import google.generativeai as genai
+import matplotlib.pyplot as plt
 
-# Configure API key globally (required by SDK even if no chatbot)
+# Configure API key globally even if chatbot removed
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
@@ -165,7 +166,25 @@ def page_stock():
             safe_rerun()
 
     if st.session_state.stocks:
-        st.dataframe(pd.DataFrame(st.session_state.stocks))
+        df_stocks = pd.DataFrame(st.session_state.stocks)
+        st.dataframe(df_stocks)
+
+        # Expiry Alert within 30 days
+        today = date.today()
+        expiry_alerts = []
+        for _, row in df_stocks.iterrows():
+            try:
+                exp_date = pd.to_datetime(row['expired']).date()
+                days_left = (exp_date - today).days
+                if 0 <= days_left <= 30:
+                    expiry_alerts.append(f"⚠️ Stock '{row['name']}' batch {row['batch_no']} expires in {days_left} days.")
+            except Exception:
+                pass
+
+        if expiry_alerts:
+            st.warning("\n".join(expiry_alerts))
+        else:
+            st.success("No stocks are expiring within 30 days.")
 
 def page_doctor():
     st.title("👨‍⚕️ Doctor Tracking")
@@ -219,6 +238,47 @@ def page_dashboard():
     col3.metric("Total Revenue", f"₹{total_revenue:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
+def page_diagrams():
+    st.title("📈 Visualizations & Reports")
+
+    # Stocks units bar chart
+    st.subheader("Stock Units by Product")
+    if st.session_state.stocks:
+        df_stocks = pd.DataFrame(st.session_state.stocks)
+        df_grouped = df_stocks.groupby('name')['units'].sum().reset_index()
+        st.bar_chart(df_grouped.set_index('name'))
+
+    # Profit vs Loss pie chart
+    st.subheader("Profit vs Loss Overview")
+    if st.session_state.stocks:
+        df_stocks = pd.DataFrame(st.session_state.stocks)
+        revenue = df_stocks['sold_amount'].sum()
+        invested = df_stocks['paid'].sum()
+        profit = revenue - invested
+        loss = invested - revenue if invested > revenue else 0
+        profit = profit if profit > 0 else 0
+        st.write(f"Total Revenue: ₹{revenue:,.0f}")
+        st.write(f"Total Investment: ₹{invested:,.0f}")
+        st.write(f"Profit: ₹{profit:,.0f}")
+        st.write(f"Loss: ₹{loss:,.0f}")
+        pie_data = pd.DataFrame({
+            'Amount': [profit, loss],
+            'Category': ['Profit', 'Loss']
+        }).set_index('Category')
+        fig, ax = plt.subplots()
+        pie_data.plot.pie(y='Amount', autopct='%1.1f%%', ax=ax)
+        ax.set_ylabel('')
+        st.pyplot(fig)
+
+    # Doctor total sales bar chart
+    st.subheader("Doctor Total Sales")
+    if st.session_state.doctors:
+        df_doctors = pd.DataFrame(st.session_state.doctors)
+        df_sales = df_doctors.groupby('name')['total_sales'].sum().reset_index()
+        if not df_sales.empty:
+            df_sales = df_sales.sort_values('total_sales', ascending=True)
+            st.bar_chart(df_sales.set_index('name'))
+
 def main():
     if st.session_state.logged_in:
         with st.sidebar:
@@ -227,18 +287,22 @@ def main():
             menu = st.radio("Menu", [
                 "Dashboard",
                 "Stock Management",
-                "Doctor Tracking"
+                "Doctor Tracking",
+                "Diagrams & Reports"
             ])
             if st.button("Logout"):
                 st.session_state.logged_in = False
                 st.session_state.user_email = ""
                 safe_rerun()
+
         if menu == "Dashboard":
             page_dashboard()
         elif menu == "Stock Management":
             page_stock()
         elif menu == "Doctor Tracking":
             page_doctor()
+        elif menu == "Diagrams & Reports":
+            page_diagrams()
     else:
         page_login()
 
