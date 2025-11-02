@@ -3,10 +3,10 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-from google import genai
+import google.generativeai as genai  # Correct import: use google.generativeai
 
-# Initialize GenAI client (Make sure GOOGLE_API_KEY is set externally)
-client = genai.Client()
+# Initialize GenAI client
+genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))  # Set API key in environment
 
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
@@ -93,11 +93,9 @@ def login(email, password):
 
 def chat_response(prompt):
     try:
-        resp = client.chat.completions.create(
-            model="models/gemini-1.5-turbo",
-            messages=[{"author":"user", "content": prompt}]
-        )
-        return resp.choices[0].message.content
+        model = genai.GenerativeModel('gemini-1.5-turbo')
+        resp = model.generate_content(prompt)
+        return resp.text
     except Exception as e:
         st.error(f"AI generation error: {e}")
         return "Sorry, unable to generate response."
@@ -273,7 +271,6 @@ def main():
                 st.session_state.user_email = ""
                 st.session_state.chat_history = []
                 safe_rerun()
-
         if menu == "Dashboard":
             page_dashboard()
         elif menu == "Stock Management":
@@ -281,9 +278,9 @@ def main():
         elif menu == "Doctor Tracking":
             page_doctor()
         elif menu == "AI Chatbot":
-            show_ai_chatbot()
+            page_chatbot()  # Fix: previously used show_ai_chatbot()
     else:
-        show_login_page()
+        page_login()  # Fix: previously used show_login_page()
 
 if __name__=="__main__":
     main()
