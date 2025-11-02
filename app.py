@@ -3,10 +3,10 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-import google.generativeai as genai
+import google.generativeai as genai  # Correct import
 
-# Initialize GenAI client with API key from environment variable
-client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
+# Configure API key globally (no Client instance)
+genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
@@ -93,8 +93,8 @@ def login(email, password):
 
 def chat_response(prompt):
     try:
-        response = client.models.generate_content(
-            model="models/gemini-flash-latest",  # currently supported model
+        response = genai.generate_content(
+            model="models/gemini-flash-latest",  # Use a current supported model
             contents=[{"text": prompt}]
         )
         return response.candidates[0].content
