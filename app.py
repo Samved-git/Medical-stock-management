@@ -7,7 +7,7 @@ import google.generativeai as genai
 import matplotlib.pyplot as plt
 import altair as alt
 
-# Configure API key (required but unused here)
+# Configure API key (required but unused directly in app)
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
@@ -165,13 +165,14 @@ def page_doctor():
     if uploaded:
         try:
             df = pd.read_excel(uploaded, engine="openpyxl")
-            required = {'name', 'clinic', 'phone', 'total_sales', 'subscribed_products'}
+            required = {'name','clinic','phone','total_sales','subscribed_products'}
             if not required.issubset(df.columns.str.lower()):
                 st.error(f"Need columns: {required}")
             else:
                 df.columns = df.columns.str.lower()
                 df['subscribed_products'] = df['subscribed_products'].apply(
-                    lambda x: [p.strip() for p in x.split(",")] if isinstance(x, str) else [])
+                    lambda x: [p.strip() for p in x.split(",")] if isinstance(x, str) else []
+                )
                 st.session_state.doctors.extend(df.to_dict(orient='records'))
                 save_all()
                 st.success(f"Added {len(df)} doctors")
@@ -203,21 +204,21 @@ def page_doctor():
     if st.session_state.doctors and st.session_state.stocks:
         df_doctors = pd.DataFrame(st.session_state.doctors)
         df_stocks = pd.DataFrame(st.session_state.stocks)
-        qty_bought = {}
+        total_units_bought = {}
         for doc in df_doctors['name']:
             filtered = df_stocks[df_stocks.get('prescribed_by', '').str.lower() == doc.lower()] if 'prescribed_by' in df_stocks else pd.DataFrame()
-            qty_bought[doc] = filtered['units'].sum() if not filtered.empty else 0
-        df_doctors['quantity_bought'] = df_doctors['name'].map(qty_bought).fillna(0).astype(int)
+            total_units_bought[doc] = filtered['units'].sum() if not filtered.empty else 0
+        df_doctors['total_units_bought'] = df_doctors['name'].map(total_units_bought).fillna(0).astype(int)
         if 'subscribed_products' in df_doctors.columns:
             df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(lambda x: ", ".join(x) if isinstance(x, list) else "")
-        st.dataframe(df_doctors[['name', 'clinic', 'phone', 'total_sales', 'subscribed_products', 'quantity_bought']])
+        st.dataframe(df_doctors[['name','clinic','phone','total_sales','subscribed_products','total_units_bought']])
 
 def page_dashboard():
     st.title("📊 Dashboard Overview")
     total_units = sum(s.get("units", 0) for s in st.session_state.stocks)
     total_revenue = sum(s.get("paid", 0) for s in st.session_state.stocks)
-    total_invested = total_revenue  # Adjust if investment differs
-    profit = total_units * 0  # Calculate properly if required
+    total_invested = total_revenue
+    profit = total_revenue - total_invested  # Placeholder, adjust if different
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Stock Units", f"{total_units}")
     col2.metric("Revenue", f"₹{total_revenue:,.0f}")
@@ -234,16 +235,13 @@ def page_diagrams():
             y=alt.Y('name', sort='-x', title='Product'),
             tooltip=['name', 'units']
         ).properties(width=700, height=400)
-        st.altair_chart(stock_chart, use_container_width=True)
+        st.altair_chart(stock_chart)
 
         revenue = df['paid'].sum()
         invested = revenue
         profit = revenue - invested
-        if profit < 0:
-            loss = abs(profit)
-            profit = 0
-        else:
-            loss = 0
+        loss = invested - revenue if invested > revenue else 0
+        profit = profit if profit > 0 else 0
 
         pie_df = pd.DataFrame({
             'Category': ['Profit', 'Loss'],
@@ -298,5 +296,5 @@ def main():
     else:
         page_login()
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
