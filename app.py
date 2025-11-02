@@ -7,7 +7,6 @@ import google.generativeai as genai
 import matplotlib.pyplot as plt
 import altair as alt
 
-# Configure API key (required, even if AI not used directly here)
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
@@ -198,14 +197,25 @@ def page_doctor():
                 "subscribed_products": products_list
             })
             save_all()
-            st.success("Doctor added")
+
+            # Calculate total units bought for this doctor
+            total_units_bought = 0
+            if 'stocks' in st.session_state:
+                df_stocks = pd.DataFrame(st.session_state.stocks)
+                if 'prescribed_by' not in df_stocks.columns:
+                    df_stocks['prescribed_by'] = ''
+                df_stocks['prescribed_by'] = df_stocks['prescribed_by'].fillna('').str.strip().str.lower()
+                doc_name_norm = name.strip().lower()
+                filtered = df_stocks[df_stocks['prescribed_by'] == doc_name_norm]
+                total_units_bought = filtered['units'].sum() if not filtered.empty else 0
+
+            st.success(f"Doctor added! Total Units Bought: {total_units_bought}")
             safe_rerun()
 
     if st.session_state.doctors and st.session_state.stocks:
         df_doctors = pd.DataFrame(st.session_state.doctors)
         df_stocks = pd.DataFrame(st.session_state.stocks)
 
-        # Ensure prescribed_by exists and normalize
         if 'prescribed_by' not in df_stocks.columns:
             df_stocks['prescribed_by'] = ''
         df_stocks['prescribed_by'] = df_stocks['prescribed_by'].fillna('').str.strip().str.lower()
@@ -219,9 +229,7 @@ def page_doctor():
         df_doctors['total_units_bought'] = df_doctors['name'].map(total_units_bought).fillna(0).astype(int)
 
         if 'subscribed_products' in df_doctors.columns:
-            df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(
-                lambda x: ", ".join(x) if isinstance(x, list) else ""
-            )
+            df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(lambda x: ", ".join(x) if isinstance(x, list) else "")
 
         st.dataframe(df_doctors[['name', 'clinic', 'phone', 'total_sales', 'subscribed_products', 'total_units_bought']])
 
@@ -308,5 +316,5 @@ def main():
     else:
         page_login()
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
