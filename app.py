@@ -7,7 +7,7 @@ import google.generativeai as genai
 import matplotlib.pyplot as plt
 import altair as alt
 
-# Configure API key (required but unused directly in app)
+# Configure API key (required, even if AI not used directly here)
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
@@ -73,7 +73,7 @@ def login(email, password):
     return False
 
 def page_login():
-    col1, col2, col3 = st.columns([1,2,1])
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("💊 PharmaBiz Pro")
         tabs = st.tabs(["Login", "Register"])
@@ -165,7 +165,7 @@ def page_doctor():
     if uploaded:
         try:
             df = pd.read_excel(uploaded, engine="openpyxl")
-            required = {'name','clinic','phone','total_sales','subscribed_products'}
+            required = {'name', 'clinic', 'phone', 'total_sales', 'subscribed_products'}
             if not required.issubset(df.columns.str.lower()):
                 st.error(f"Need columns: {required}")
             else:
@@ -204,21 +204,33 @@ def page_doctor():
     if st.session_state.doctors and st.session_state.stocks:
         df_doctors = pd.DataFrame(st.session_state.doctors)
         df_stocks = pd.DataFrame(st.session_state.stocks)
+
+        # Ensure prescribed_by exists and normalize
+        if 'prescribed_by' not in df_stocks.columns:
+            df_stocks['prescribed_by'] = ''
+        df_stocks['prescribed_by'] = df_stocks['prescribed_by'].fillna('').str.strip().str.lower()
+
         total_units_bought = {}
         for doc in df_doctors['name']:
-            filtered = df_stocks[df_stocks.get('prescribed_by', '').str.lower() == doc.lower()] if 'prescribed_by' in df_stocks else pd.DataFrame()
+            doc_norm = str(doc).strip().lower()
+            filtered = df_stocks[df_stocks['prescribed_by'] == doc_norm]
             total_units_bought[doc] = filtered['units'].sum() if not filtered.empty else 0
+
         df_doctors['total_units_bought'] = df_doctors['name'].map(total_units_bought).fillna(0).astype(int)
+
         if 'subscribed_products' in df_doctors.columns:
-            df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(lambda x: ", ".join(x) if isinstance(x, list) else "")
-        st.dataframe(df_doctors[['name','clinic','phone','total_sales','subscribed_products','total_units_bought']])
+            df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(
+                lambda x: ", ".join(x) if isinstance(x, list) else ""
+            )
+
+        st.dataframe(df_doctors[['name', 'clinic', 'phone', 'total_sales', 'subscribed_products', 'total_units_bought']])
 
 def page_dashboard():
     st.title("📊 Dashboard Overview")
     total_units = sum(s.get("units", 0) for s in st.session_state.stocks)
     total_revenue = sum(s.get("paid", 0) for s in st.session_state.stocks)
     total_invested = total_revenue
-    profit = total_revenue - total_invested  # Placeholder, adjust if different
+    profit = total_revenue - total_invested
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Stock Units", f"{total_units}")
     col2.metric("Revenue", f"₹{total_revenue:,.0f}")
@@ -296,5 +308,5 @@ def main():
     else:
         page_login()
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
