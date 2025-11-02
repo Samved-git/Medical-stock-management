@@ -14,7 +14,7 @@ def page_welcome():
     st.markdown("<p style='text-align:center;'>Your trusted pharma business management solution.</p>", unsafe_allow_html=True)
     if st.button("Continue"):
         st.session_state['welcome_done'] = True
-        st.experimental_rerun()
+        st.rerun()
 
 def load_json(file):
     try:
@@ -78,7 +78,7 @@ def page_login():
             if st.button("Login"):
                 if login(email, password):
                     st.success("Logged in")
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Invalid credentials")
         with tabs[1]:
@@ -90,7 +90,7 @@ def page_login():
                 if business and email and password:
                     if register(email, password, business):
                         st.success("Registered! Please login.")
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("Already registered.")
                 else:
@@ -110,7 +110,7 @@ def page_stock():
                 st.session_state.stocks.extend(df.to_dict(orient='records'))
                 save_all()
                 st.success(f"Added {len(df)} records")
-                st.experimental_rerun()
+                st.rerun()
         except Exception as e:
             st.error(str(e))
     st.markdown("### Add Product")
@@ -133,7 +133,7 @@ def page_stock():
             })
             save_all()
             st.success("Product added")
-            st.experimental_rerun()
+            st.rerun()
 
     if st.session_state.stocks:
         df = pd.DataFrame(st.session_state.stocks)
@@ -161,7 +161,6 @@ def page_doctor():
         try:
             df = pd.read_excel(uploaded, engine="openpyxl")
             required = {'name', 'clinic', 'phone', 'total_sales', 'subscribed_products'}
-            # Accept file even if total_units_bought not present
             df.columns = df.columns.str.lower()
             if 'subscribed_products' in df.columns:
                 df['subscribed_products'] = df['subscribed_products'].apply(
@@ -172,7 +171,7 @@ def page_doctor():
             st.session_state.doctors.extend(df.to_dict(orient='records'))
             save_all()
             st.success(f"Added {len(df)} doctors")
-            st.experimental_rerun()
+            st.rerun()
         except Exception as e:
             st.error(str(e))
 
@@ -197,11 +196,10 @@ def page_doctor():
             })
             save_all()
             st.success(f"Doctor added! Total Units Bought: {int(total_units_input)}")
-            st.experimental_rerun()
+            st.rerun()
 
     if st.session_state.doctors:
         df_doctors = pd.DataFrame(st.session_state.doctors)
-        # Ensure column always present and filled for all records
         if 'total_units_bought' not in df_doctors.columns:
             df_doctors['total_units_bought'] = 0
         if 'subscribed_products' in df_doctors.columns:
@@ -270,7 +268,7 @@ def main():
             if st.button("Logout"):
                 st.session_state['logged_in'] = False
                 st.session_state['user_email'] = ''
-                st.experimental_rerun()
+                st.rerun()
         if menu == "Dashboard":
             page_dashboard()
         elif menu == "Stock Management":
@@ -282,5 +280,5 @@ def main():
     else:
         page_login()
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
