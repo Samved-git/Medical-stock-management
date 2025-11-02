@@ -186,7 +186,7 @@ def page_doctor():
         phone = st.text_input("Phone")
         total_sales = st.number_input("Total Sales", min_value=0.0)
         subscribed_products = st.text_input("Subscribed Products (comma separated)")
-        total_units_input = st.number_input("Total Units Bought", min_value=0) # <-- User can input manually
+        total_units_input = st.number_input("Total Units Bought", min_value=0)
         submit = st.form_submit_button("Add")
         if submit:
             products_list = [p.strip() for p in subscribed_products.split(",") if p.strip()] if subscribed_products else []
@@ -200,7 +200,6 @@ def page_doctor():
                 "total_units_bought": int(total_units_input)
             })
             save_all()
-
             st.success(f"Doctor added! Total Units Bought: {int(total_units_input)}")
             safe_rerun()
 
@@ -225,39 +224,29 @@ def page_dashboard():
 
 def page_diagrams():
     st.title("📈 Visual Reports")
+
     if st.session_state.stocks:
         df = pd.DataFrame(st.session_state.stocks)
-        stock_grouped = df.groupby('name')['units'].sum().reset_index()
-        stock_chart = alt.Chart(stock_grouped).mark_bar().encode(
-            x=alt.X('units', title='Units'),
-            y=alt.Y('name', sort='-x', title='Product'),
-            tooltip=['name', 'units']
-        ).properties(width=700, height=400)
-        st.altair_chart(stock_chart)
+        prod_amount = df.groupby('name')['paid'].sum().reset_index().rename(columns={'paid': 'total_amount'})
 
-        revenue = df['paid'].sum()
-        invested = revenue
-        profit = revenue - invested
-        loss = invested - revenue if invested > revenue else 0
-        profit = profit if profit > 0 else 0
+        st.subheader("Product-wise Amount Table")
+        st.dataframe(prod_amount)
 
-        pie_df = pd.DataFrame({
-            'Category': ['Profit', 'Loss'],
-            'Amount': [profit, loss]
-        })
-        pie_chart = alt.Chart(pie_df).mark_arc(innerRadius=50).encode(
-            theta=alt.Theta(field="Amount", type="quantitative"),
-            color=alt.Color(field="Category", type="nominal",
-                            scale=alt.Scale(domain=["Profit", "Loss"], range=["#2ca02c", "#d62728"])),
-            tooltip=[alt.Tooltip('Category'), alt.Tooltip('Amount', format=',')]
+        st.subheader("Product-wise Amount Pie Chart")
+        pie_chart = alt.Chart(prod_amount).mark_arc(innerRadius=50).encode(
+            theta=alt.Theta(field="total_amount", type="quantitative"),
+            color=alt.Color(field="name", type="nominal"),
+            tooltip=["name", "total_amount"]
         ).properties(width=400, height=400)
-        label = pie_chart.mark_text(radius=90, size=14).encode(text='Category')
+        label = pie_chart.mark_text(radius=90, size=14).encode(text='name')
         st.altair_chart(pie_chart + label, use_container_width=False)
 
     if st.session_state.doctors:
         df_doctors = pd.DataFrame(st.session_state.doctors)
         df_doctors['total_sales'] = pd.to_numeric(df_doctors['total_sales'], errors='coerce').fillna(0)
         sales_grouped = df_doctors.groupby('name')['total_sales'].sum().reset_index()
+        st.subheader("Doctor-wise Total Sales Table")
+        st.dataframe(sales_grouped)
         sales_chart = alt.Chart(sales_grouped).mark_bar(color="#ff7f0e").encode(
             x=alt.X('total_sales', title='Total Sales'),
             y=alt.Y('name', sort='-x', title='Doctor'),
