@@ -6,7 +6,7 @@ from datetime import datetime, date
 import google.generativeai as genai
 import matplotlib.pyplot as plt
 
-# Configure API key globally even if chatbot removed
+# Configure API key globally (required but unused directly here)
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
@@ -192,11 +192,15 @@ def page_doctor():
     if uploaded:
         try:
             df = pd.read_excel(uploaded, engine="openpyxl")
-            required = {'name','clinic','phone','total_sales'}
+            required = {'name','clinic','phone','total_sales','subscribed_products'}
             if not required.issubset(df.columns.str.lower()):
                 st.error(f"Need columns: {required}")
             else:
                 df.columns = df.columns.str.lower()
+                # Convert subscribed_products from comma string to list
+                df['subscribed_products'] = df['subscribed_products'].apply(
+                    lambda x: [p.strip() for p in x.split(",")] if isinstance(x, str) else []
+                )
                 st.session_state.doctors.extend(df.to_dict(orient='records'))
                 save_all()
                 st.success(f"Added {len(df)} doctors")
@@ -210,20 +214,27 @@ def page_doctor():
         clinic = st.text_input("Clinic")
         phone = st.text_input("Phone")
         sales = st.number_input("Total Sales", min_value=0.0)
+        subscribed_products = st.text_input("Subscribed Products (comma separated)")
         submit = st.form_submit_button("Add Doctor")
         if submit:
+            products_list = [p.strip() for p in subscribed_products.split(",")] if subscribed_products else []
             st.session_state.doctors.append({
                 "name": name,
                 "clinic": clinic,
                 "phone": phone,
-                "total_sales": sales
+                "total_sales": sales,
+                "subscribed_products": products_list
             })
             save_all()
             st.success("Doctor added")
             safe_rerun()
 
     if st.session_state.doctors:
-        st.dataframe(pd.DataFrame(st.session_state.doctors))
+        df_doctors = pd.DataFrame(st.session_state.doctors)
+        if 'subscribed_products' in df_doctors.columns:
+            df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(
+                lambda x: ", ".join(x) if isinstance(x, list) else "")
+        st.dataframe(df_doctors)
 
 def page_dashboard():
     st.title("📊 Dashboard Overview")
@@ -241,7 +252,7 @@ def page_dashboard():
 def page_diagrams():
     st.title("📈 Visualizations & Reports")
 
-    # Stocks units bar chart
+    # Stock Units by Product bar chart
     st.subheader("Stock Units by Product")
     if st.session_state.stocks:
         df_stocks = pd.DataFrame(st.session_state.stocks)
