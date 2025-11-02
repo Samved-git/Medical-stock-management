@@ -188,15 +188,7 @@ def page_doctor():
         subscribed_products = st.text_input("Subscribed Products (comma separated)")
         submit = st.form_submit_button("Add")
         if submit:
-            products_list = [p.strip() for p in subscribed_products.split(",")] if subscribed_products else []
-            st.session_state.doctors.append({
-                "name": name,
-                "clinic": clinic,
-                "phone": phone,
-                "total_sales": total_sales,
-                "subscribed_products": products_list
-            })
-            save_all()
+            products_list = [p.strip() for p in subscribed_products.split(",") if p.strip()] if subscribed_products else []
 
             # Calculate total units bought for this doctor
             total_units_bought = 0
@@ -206,10 +198,23 @@ def page_doctor():
                     df_stocks['prescribed_by'] = ''
                 df_stocks['prescribed_by'] = df_stocks['prescribed_by'].fillna('').str.strip().str.lower()
                 doc_name_norm = name.strip().lower()
-                filtered = df_stocks[df_stocks['prescribed_by'] == doc_name_norm]
-                total_units_bought = filtered['units'].sum() if not filtered.empty else 0
+                for prod in products_list:
+                    prod_norm = prod.lower()
+                    filtered = df_stocks[
+                        (df_stocks['prescribed_by'] == doc_name_norm) & (df_stocks['name'].str.lower() == prod_norm)
+                    ]
+                    total_units_bought += filtered['units'].sum() if not filtered.empty else 0
 
-            st.success(f"Doctor added! Total Units Bought: {total_units_bought}")
+            st.session_state.doctors.append({
+                "name": name,
+                "clinic": clinic,
+                "phone": phone,
+                "total_sales": total_sales,
+                "subscribed_products": products_list
+            })
+            save_all()
+
+            st.success(f"Doctor added! Total Units Bought: {int(total_units_bought)}")
             safe_rerun()
 
     if st.session_state.doctors and st.session_state.stocks:
@@ -221,15 +226,26 @@ def page_doctor():
         df_stocks['prescribed_by'] = df_stocks['prescribed_by'].fillna('').str.strip().str.lower()
 
         total_units_bought = {}
-        for doc in df_doctors['name']:
-            doc_norm = str(doc).strip().lower()
-            filtered = df_stocks[df_stocks['prescribed_by'] == doc_norm]
-            total_units_bought[doc] = filtered['units'].sum() if not filtered.empty else 0
+        for idx, doc_row in df_doctors.iterrows():
+            doc_name_norm = str(doc_row['name']).strip().lower()
+            subscribed_list = doc_row.get('subscribed_products', [])
+            if not isinstance(subscribed_list, list):
+                subscribed_list = []
+            units_sum = 0
+            for prod in subscribed_list:
+                prod_norm = prod.lower()
+                filtered = df_stocks[
+                    (df_stocks['prescribed_by'] == doc_name_norm) & (df_stocks['name'].str.lower() == prod_norm)
+                ]
+                units_sum += filtered['units'].sum() if not filtered.empty else 0
+            total_units_bought[doc_row['name']] = units_sum
 
         df_doctors['total_units_bought'] = df_doctors['name'].map(total_units_bought).fillna(0).astype(int)
 
         if 'subscribed_products' in df_doctors.columns:
-            df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(lambda x: ", ".join(x) if isinstance(x, list) else "")
+            df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(
+                lambda x: ", ".join(x) if isinstance(x, list) else ""
+            )
 
         st.dataframe(df_doctors[['name', 'clinic', 'phone', 'total_sales', 'subscribed_products', 'total_units_bought']])
 
