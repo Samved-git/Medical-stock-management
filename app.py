@@ -227,7 +227,6 @@ def page_diagrams():
     if st.session_state.stocks:
         df = pd.DataFrame(st.session_state.stocks)
         prod_amount = df.groupby('name')['paid'].sum().reset_index().rename(columns={'paid': 'total_amount'})
-
         st.subheader("Product-wise Amount Table")
         st.dataframe(prod_amount)
 
@@ -236,18 +235,9 @@ def page_diagrams():
             theta=alt.Theta(field="total_amount", type="quantitative"),
             color=alt.Color("name:N", legend=alt.Legend(title="Product Name")),
             tooltip=["name", "total_amount"]
-        )
+        ).properties(width=400, height=400)
 
-        # Move names outside arcs for clarity
-        pie_labels = alt.Chart(prod_amount).mark_text(
-            radiusOffset=110, fontSize=15
-        ).encode(
-            theta=alt.Theta(field="total_amount", type="quantitative"),
-            text=alt.Text("name:N"),
-            color=alt.value("black")
-        )
-
-        st.altair_chart(pie_chart + pie_labels, use_container_width=False)
+        st.altair_chart(pie_chart, use_container_width=False)
 
     if st.session_state.doctors:
         df_doctors = pd.DataFrame(st.session_state.doctors)
