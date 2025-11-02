@@ -3,10 +3,10 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-import google.generativeai as genai  # Correct import: use google.generativeai
+import google.generativeai as genai  # Correct import
 
-# Initialize GenAI client
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))  # Set API key in environment
+# Configure GenAI with API key from environment variable
+genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
@@ -32,6 +32,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Initialize session state keys if not present
 for key in ['logged_in','user_email','users','stocks','doctors','chat_history','_rerun_flag']:
     if key not in st.session_state:
         if key in ['logged_in','_rerun_flag']:
@@ -271,6 +272,7 @@ def main():
                 st.session_state.user_email = ""
                 st.session_state.chat_history = []
                 safe_rerun()
+
         if menu == "Dashboard":
             page_dashboard()
         elif menu == "Stock Management":
@@ -278,9 +280,9 @@ def main():
         elif menu == "Doctor Tracking":
             page_doctor()
         elif menu == "AI Chatbot":
-            page_chatbot()  # Fix: previously used show_ai_chatbot()
+            page_chatbot()
     else:
-        page_login()  # Fix: previously used show_login_page()
+        page_login()
 
 if __name__=="__main__":
     main()
