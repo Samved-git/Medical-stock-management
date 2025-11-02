@@ -7,7 +7,7 @@ import google.generativeai as genai
 import matplotlib.pyplot as plt
 import altair as alt
 
-# Configure GAI API key (for any future AI use):
+# Configure API key (required but unused here)
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
@@ -18,7 +18,7 @@ def safe_rerun():
 
 def page_welcome():
     st.markdown("<h1 style='text-align:center; color:#1e293b;'>Welcome to ABCD Pharma</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>Your trusted pharma management</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>Your trusted pharma business management solution.</p>", unsafe_allow_html=True)
     if st.button("Continue"):
         st.session_state['welcome_done'] = True
 
@@ -48,8 +48,10 @@ load_all()
 
 def register(email, password, business):
     email = email.strip().lower()
+    password = password.strip()
+    business = business.strip()
     if any(u['email'] == email for u in st.session_state.users):
-        st.warning("Already registered.")
+        st.warning("User already registered.")
         return False
     st.session_state.users.append({
         "email": email,
@@ -62,6 +64,7 @@ def register(email, password, business):
 
 def login(email, password):
     email = email.strip().lower()
+    password = password.strip()
     for u in st.session_state.users:
         if u['email'] == email and u['password'] == password:
             st.session_state['logged_in'] = True
@@ -96,7 +99,7 @@ def page_login():
                     else:
                         st.error("Already registered.")
                 else:
-                    st.error("Fill all required info.")
+                    st.error("Fill all fields")
 
 def page_stock():
     st.title("📦 Stock Management")
@@ -104,7 +107,7 @@ def page_stock():
     if uploaded:
         try:
             df = pd.read_excel(uploaded, engine="openpyxl")
-            required = {'name','batch_no','received','expired','paid','units','sold','sold_amount'}
+            required = {'name', 'batch_no', 'received', 'expired', 'paid', 'units'}
             if not required.issubset(df.columns.str.lower()):
                 st.error(f"Need columns: {required}")
             else:
@@ -123,8 +126,6 @@ def page_stock():
         expired = st.date_input("Expiry Date")
         paid = st.number_input("Paid", min_value=0.0)
         units = st.number_input("Units")
-        sold = st.number_input("Sold")
-        sold_amount = st.number_input("Sold Amount", min_value=0.0)
         submit = st.form_submit_button("Add Product")
         if submit:
             st.session_state.stocks.append({
@@ -133,9 +134,7 @@ def page_stock():
                 "received": str(received),
                 "expired": str(expired),
                 "paid": paid,
-                "units": units,
-                "sold": sold,
-                "sold_amount": sold_amount
+                "units": units
             })
             save_all()
             st.success("Product added")
@@ -143,22 +142,20 @@ def page_stock():
 
     if st.session_state.stocks:
         df = pd.DataFrame(st.session_state.stocks)
-        stock_cols = ['name','batch_no','received','expired','paid','units','sold','sold_amount']
+        stock_cols = ['name', 'batch_no', 'received', 'expired', 'paid', 'units']
         st.dataframe(df[stock_cols])
-
-        # Expiry alert for stocks within 30 days
         today = date.today()
-        alerts = []
+        expiry_alerts = []
         for _, row in df.iterrows():
             try:
                 exp_date = pd.to_datetime(row['expired']).date()
                 days_left = (exp_date - today).days
                 if 0 <= days_left <= 30:
-                    alerts.append(f"⚠️ '{row['name']}' batch {row['batch_no']} expires in {days_left} days")
+                    expiry_alerts.append(f"⚠️ '{row['name']}' batch {row['batch_no']} expires in {days_left} days")
             except:
                 continue
-        if alerts:
-            st.warning("\n".join(alerts))
+        if expiry_alerts:
+            st.warning("\n".join(expiry_alerts))
         else:
             st.success("No stocks expiring soon.")
 
@@ -168,7 +165,7 @@ def page_doctor():
     if uploaded:
         try:
             df = pd.read_excel(uploaded, engine="openpyxl")
-            required = {'name','clinic','phone','total_sales','subscribed_products'}
+            required = {'name', 'clinic', 'phone', 'total_sales', 'subscribed_products'}
             if not required.issubset(df.columns.str.lower()):
                 st.error(f"Need columns: {required}")
             else:
@@ -181,13 +178,14 @@ def page_doctor():
                 safe_rerun()
         except Exception as e:
             st.error(str(e))
+
     st.markdown("### Add Doctor")
     with st.form("doctor_form", clear_on_submit=True):
         name = st.text_input("Doctor Name")
         clinic = st.text_input("Clinic")
         phone = st.text_input("Phone")
         total_sales = st.number_input("Total Sales", min_value=0.0)
-        subscribed_products = st.text_input("Subscribed Products (comma-separated)")
+        subscribed_products = st.text_input("Subscribed Products (comma separated)")
         submit = st.form_submit_button("Add")
         if submit:
             products_list = [p.strip() for p in subscribed_products.split(",")] if subscribed_products else []
@@ -202,84 +200,74 @@ def page_doctor():
             st.success("Doctor added")
             safe_rerun()
 
-    # Show doctor details and calculate quantity bought
-    if st.session_state.doctors:
+    if st.session_state.doctors and st.session_state.stocks:
         df_doctors = pd.DataFrame(st.session_state.doctors)
+        df_stocks = pd.DataFrame(st.session_state.stocks)
+        qty_bought = {}
+        for doc in df_doctors['name']:
+            filtered = df_stocks[df_stocks.get('prescribed_by', '').str.lower() == doc.lower()] if 'prescribed_by' in df_stocks else pd.DataFrame()
+            qty_bought[doc] = filtered['units'].sum() if not filtered.empty else 0
+        df_doctors['quantity_bought'] = df_doctors['name'].map(qty_bought).fillna(0).astype(int)
         if 'subscribed_products' in df_doctors.columns:
             df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(lambda x: ", ".join(x) if isinstance(x, list) else "")
-        # Calculate quantity bought: sum of sold units in stocks prescribed by each doctor
-        if st.session_state.stocks:
-            df_stocks = pd.DataFrame(st.session_state.stocks)
-            qty_bought = {}
-            for doc in df_doctors['name']:
-                # Filter stocks prescribed by this doctor
-                filtered = df_stocks[df_stocks.get('prescribed_by', '').str.lower() == doc.lower()] if 'prescribed_by' in df_stocks else pd.DataFrame()
-                qty_bought[doc] = filtered['sold'].sum() if not filtered.empty else 0
-            df_doctors['quantity_bought'] = df_doctors['name'].map(qty_bought).fillna(0).astype(int)
-        st.dataframe(df_doctors)
+        st.dataframe(df_doctors[['name', 'clinic', 'phone', 'total_sales', 'subscribed_products', 'quantity_bought']])
 
 def page_dashboard():
     st.title("📊 Dashboard Overview")
     total_units = sum(s.get("units", 0) for s in st.session_state.stocks)
-    total_sold = sum(s.get("sold", 0) for s in st.session_state.stocks)
-    total_revenue = sum(s.get("sold_amount", 0) for s in st.session_state.stocks)
-    total_invested = sum(s.get("paid", 0) for s in st.session_state.stocks)
-    profit = total_revenue - total_invested
+    total_revenue = sum(s.get("paid", 0) for s in st.session_state.stocks)
+    total_invested = total_revenue  # Adjust if investment differs
+    profit = total_units * 0  # Calculate properly if required
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Stock Units", f"{total_units}")
-    col2.metric("Total Sold", f"{total_sold}")
-    col3.metric("Revenue", f"₹{total_revenue:,.0f}")
+    col2.metric("Revenue", f"₹{total_revenue:,.0f}")
+    col3.metric("Investment", f"₹{total_invested:,.0f}")
     col4.metric("Profit", f"₹{profit:,.0f}")
 
 def page_diagrams():
     st.title("📈 Visual Reports")
-    # Stock units bar chart
     if st.session_state.stocks:
         df = pd.DataFrame(st.session_state.stocks)
-        df_grouped = df.groupby('name')['units'].sum().reset_index()
-        chart = alt.Chart(df_grouped).mark_bar().encode(
+        stock_grouped = df.groupby('name')['units'].sum().reset_index()
+        stock_chart = alt.Chart(stock_grouped).mark_bar().encode(
             x=alt.X('units', title='Units'),
             y=alt.Y('name', sort='-x', title='Product'),
-            tooltip=['name','units']
+            tooltip=['name', 'units']
         ).properties(width=700, height=400)
-        st.altair_chart(chart)
+        st.altair_chart(stock_chart, use_container_width=True)
 
-    # Profit/Loss Pie
-    if st.session_state.stocks:
-        df = pd.DataFrame(st.session_state.stocks)
-        revenue = df['sold_amount'].sum()
-        invested = df['paid'].sum()
+        revenue = df['paid'].sum()
+        invested = revenue
         profit = revenue - invested
-        loss = invested - revenue if invested > revenue else 0
-        profit_display = profit if profit > 0 else 0
+        if profit < 0:
+            loss = abs(profit)
+            profit = 0
+        else:
+            loss = 0
+
         pie_df = pd.DataFrame({
             'Category': ['Profit', 'Loss'],
-            'Amount': [profit_display, loss]
+            'Amount': [profit, loss]
         })
-        chart = alt.Chart(pie_df).mark_arc(innerRadius=50).encode(
-            theta=alt.Theta(field='Amount', type='quantitative'),
-            color=alt.Color('Category', type='nominal', scale=alt.Scale(domain=["Profit","Loss"], range=["#2ca02c","#d62728"])),
-            tooltip=['Category', alt.Tooltip('Amount', format=',')]
+        pie_chart = alt.Chart(pie_df).mark_arc(innerRadius=50).encode(
+            theta=alt.Theta(field="Amount", type="quantitative"),
+            color=alt.Color(field="Category", type="nominal",
+                            scale=alt.Scale(domain=["Profit", "Loss"], range=["#2ca02c", "#d62728"])),
+            tooltip=[alt.Tooltip('Category'), alt.Tooltip('Amount', format=',')]
         ).properties(width=400, height=400)
-        st.altair_chart(chart)
+        label = pie_chart.mark_text(radius=90, size=14).encode(text='Category')
+        st.altair_chart(pie_chart + label, use_container_width=False)
 
-        st.write(f"Total Revenue: ₹{revenue:,.0f}")
-        st.write(f"Total Investment: ₹{invested:,.0f}")
-        st.write(f"Net Profit: ₹{profit_display:,.0f}")
-        st.write(f"Loss: ₹{loss:,.0f}")
-
-    # Doctor sales bar chart
     if st.session_state.doctors:
-        df_d = pd.DataFrame(st.session_state.doctors)
-        df_d['total_sales'] = pd.to_numeric(df_d['total_sales'], errors='coerce').fillna(0)
-        chart_data = df_d.groupby('name')['total_sales'].sum().reset_index()
-        if not chart_data.empty:
-            chart = alt.Chart(chart_data).mark_bar().encode(
-                x=alt.X('total_sales', title='Total Sales'),
-                y=alt.Y('name', sort='-x', title='Doctor'),
-                tooltip=['name','total_sales']
-            ).properties(width=700, height=400)
-            st.altair_chart(chart)
+        df_doctors = pd.DataFrame(st.session_state.doctors)
+        df_doctors['total_sales'] = pd.to_numeric(df_doctors['total_sales'], errors='coerce').fillna(0)
+        sales_grouped = df_doctors.groupby('name')['total_sales'].sum().reset_index()
+        sales_chart = alt.Chart(sales_grouped).mark_bar(color="#ff7f0e").encode(
+            x=alt.X('total_sales', title='Total Sales'),
+            y=alt.Y('name', sort='-x', title='Doctor'),
+            tooltip=['name', 'total_sales']
+        ).properties(width=700, height=400)
+        st.altair_chart(sales_chart, use_container_width=True)
 
 def main():
     if 'welcome_done' not in st.session_state:
@@ -299,7 +287,6 @@ def main():
                 st.session_state['logged_in'] = False
                 st.session_state['user_email'] = ''
                 safe_rerun()
-
         if menu == "Dashboard":
             page_dashboard()
         elif menu == "Stock Management":
@@ -311,5 +298,5 @@ def main():
     else:
         page_login()
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
