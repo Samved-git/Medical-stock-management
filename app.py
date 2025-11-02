@@ -9,17 +9,12 @@ import altair as alt
 
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
-def safe_rerun():
-    if hasattr(st, "experimental_rerun"):
-        st.experimental_rerun()
-    else:
-        st.session_state["_rerun_flag"] = not st.session_state.get("_rerun_flag", False)
-
 def page_welcome():
     st.markdown("<h1 style='text-align:center; color:#1e293b;'>Welcome to ABCD Pharma</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center;'>Your trusted pharma business management solution.</p>", unsafe_allow_html=True)
     if st.button("Continue"):
         st.session_state['welcome_done'] = True
+        st.experimental_rerun()
 
 def load_json(file):
     try:
@@ -83,7 +78,7 @@ def page_login():
             if st.button("Login"):
                 if login(email, password):
                     st.success("Logged in")
-                    safe_rerun()
+                    st.experimental_rerun()
                 else:
                     st.error("Invalid credentials")
         with tabs[1]:
@@ -95,6 +90,7 @@ def page_login():
                 if business and email and password:
                     if register(email, password, business):
                         st.success("Registered! Please login.")
+                        st.experimental_rerun()
                     else:
                         st.error("Already registered.")
                 else:
@@ -114,7 +110,7 @@ def page_stock():
                 st.session_state.stocks.extend(df.to_dict(orient='records'))
                 save_all()
                 st.success(f"Added {len(df)} records")
-                safe_rerun()
+                st.experimental_rerun()
         except Exception as e:
             st.error(str(e))
     st.markdown("### Add Product")
@@ -137,7 +133,7 @@ def page_stock():
             })
             save_all()
             st.success("Product added")
-            safe_rerun()
+            st.experimental_rerun()
 
     if st.session_state.stocks:
         df = pd.DataFrame(st.session_state.stocks)
@@ -175,7 +171,7 @@ def page_doctor():
                 st.session_state.doctors.extend(df.to_dict(orient='records'))
                 save_all()
                 st.success(f"Added {len(df)} doctors")
-                safe_rerun()
+                st.experimental_rerun()
         except Exception as e:
             st.error(str(e))
 
@@ -201,7 +197,7 @@ def page_doctor():
             })
             save_all()
             st.success(f"Doctor added! Total Units Bought: {int(total_units_input)}")
-            safe_rerun()
+            st.experimental_rerun()
 
     if st.session_state.doctors:
         df_doctors = pd.DataFrame(st.session_state.doctors)
@@ -269,7 +265,7 @@ def main():
             if st.button("Logout"):
                 st.session_state['logged_in'] = False
                 st.session_state['user_email'] = ''
-                safe_rerun()
+                st.experimental_rerun()
         if menu == "Dashboard":
             page_dashboard()
         elif menu == "Stock Management":
