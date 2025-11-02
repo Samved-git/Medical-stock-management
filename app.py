@@ -3,9 +3,9 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-import google.generativeai as genai  # Correct import
+import google.generativeai as genai
 
-# Configure API key globally (no Client instance)
+# Configure API key globally (required by SDK even if no chatbot)
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
@@ -32,12 +32,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-for key in ['logged_in','user_email','users','stocks','doctors','chat_history','_rerun_flag']:
+for key in ['logged_in','user_email','users','stocks','doctors','_rerun_flag']:
     if key not in st.session_state:
         if key in ['logged_in','_rerun_flag']:
             st.session_state[key] = False
-        elif key == 'chat_history':
-            st.session_state[key] = []
         else:
             st.session_state[key] = []
 
@@ -91,17 +89,6 @@ def login(email, password):
             return True
     return False
 
-def chat_response(prompt):
-    try:
-        response = genai.generate_content(
-            model="models/gemini-flash-latest",  # Use a current supported model
-            contents=[{"text": prompt}]
-        )
-        return response.candidates[0].content
-    except Exception as e:
-        st.error(f"AI generation error: {e}")
-        return "Sorry, unable to generate response."
-
 def page_login():
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
@@ -130,31 +117,6 @@ def page_login():
                         st.error("Email already registered")
                 else:
                     st.error("Fill all fields")
-
-def page_chatbot():
-    st.title("🤖 AI Chatbot")
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-
-    def add_msg(role, content):
-        st.session_state.chat_history.append({"role": role, "content": content})
-
-    with st.form("chat_form", clear_on_submit=True):
-        prompt = st.text_input("Ask your question")
-        send = st.form_submit_button("Send")
-
-    if send and prompt.strip():
-        add_msg("user", prompt)
-        with st.spinner("Getting AI response..."):
-            response = chat_response(prompt)
-        add_msg("assistant", response)
-        safe_rerun()
-
-    for msg in st.session_state.chat_history:
-        if msg['role'] == 'user':
-            st.markdown(f"**You:** {msg['content']}")
-        else:
-            st.markdown(f"**AI:** {msg['content']}")
 
 def page_stock():
     st.title("📦 Stock Management")
@@ -265,13 +227,11 @@ def main():
             menu = st.radio("Menu", [
                 "Dashboard",
                 "Stock Management",
-                "Doctor Tracking",
-                "AI Chatbot"
+                "Doctor Tracking"
             ])
             if st.button("Logout"):
                 st.session_state.logged_in = False
                 st.session_state.user_email = ""
-                st.session_state.chat_history = []
                 safe_rerun()
         if menu == "Dashboard":
             page_dashboard()
@@ -279,8 +239,6 @@ def main():
             page_stock()
         elif menu == "Doctor Tracking":
             page_doctor()
-        elif menu == "AI Chatbot":
-            page_chatbot()
     else:
         page_login()
 
