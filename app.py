@@ -3,10 +3,10 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-import google.generativeai as genai  # Correct import for GenAI
+import google.generativeai as genai
 
-# Configure GenAI with API key from environment variable
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+# Initialize GenAI client with API key from environment variable
+client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
@@ -32,7 +32,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state keys if missing
 for key in ['logged_in','user_email','users','stocks','doctors','chat_history','_rerun_flag']:
     if key not in st.session_state:
         if key in ['logged_in','_rerun_flag']:
@@ -94,13 +93,11 @@ def login(email, password):
 
 def chat_response(prompt):
     try:
-        response = genai.generate_text(
-            model="models/gemini-flash-latest",
-            prompt=prompt,
-            temperature=0.7,
-            max_output_tokens=1024,
+        response = client.models.generate_content(
+            model="models/gemini-flash-latest",  # currently supported model
+            contents=[{"text": prompt}]
         )
-        return response.text
+        return response.candidates[0].content
     except Exception as e:
         st.error(f"AI generation error: {e}")
         return "Sorry, unable to generate response."
