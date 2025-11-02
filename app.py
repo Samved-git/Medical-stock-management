@@ -5,8 +5,9 @@ import os
 from datetime import datetime, date
 import google.generativeai as genai
 import matplotlib.pyplot as plt
+import altair as alt
 
-# Configure API key globally (required but unused directly here)
+# Configure API key globally (required but unused directly)
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 def safe_rerun():
@@ -168,8 +169,6 @@ def page_stock():
     if st.session_state.stocks:
         df_stocks = pd.DataFrame(st.session_state.stocks)
         st.dataframe(df_stocks)
-
-        # Expiry Alert within 30 days
         today = date.today()
         expiry_alerts = []
         for _, row in df_stocks.iterrows():
@@ -197,7 +196,6 @@ def page_doctor():
                 st.error(f"Need columns: {required}")
             else:
                 df.columns = df.columns.str.lower()
-                # Convert subscribed_products from comma string to list
                 df['subscribed_products'] = df['subscribed_products'].apply(
                     lambda x: [p.strip() for p in x.split(",")] if isinstance(x, str) else []
                 )
@@ -232,8 +230,7 @@ def page_doctor():
     if st.session_state.doctors:
         df_doctors = pd.DataFrame(st.session_state.doctors)
         if 'subscribed_products' in df_doctors.columns:
-            df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(
-                lambda x: ", ".join(x) if isinstance(x, list) else "")
+            df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(lambda x: ", ".join(x) if isinstance(x, list) else "")
         st.dataframe(df_doctors)
 
 def page_dashboard():
@@ -252,14 +249,19 @@ def page_dashboard():
 def page_diagrams():
     st.title("📈 Visualizations & Reports")
 
-    # Stock Units by Product bar chart
+    # Stock Units by Product - horizontal bar chart
     st.subheader("Stock Units by Product")
     if st.session_state.stocks:
         df_stocks = pd.DataFrame(st.session_state.stocks)
         df_grouped = df_stocks.groupby('name')['units'].sum().reset_index()
-        st.bar_chart(df_grouped.set_index('name'))
+        chart_stocks = alt.Chart(df_grouped).mark_bar(color="#4c78a8").encode(
+            x=alt.X('units', title='Units'),
+            y=alt.Y('name', sort='-x', title='Product'),
+            tooltip=['name', 'units']
+        ).properties(width=700, height=400)
+        st.altair_chart(chart_stocks, use_container_width=True)
 
-    # Profit vs Loss pie chart
+    # Profit vs Loss Pie Chart
     st.subheader("Profit vs Loss Overview")
     if st.session_state.stocks:
         df_stocks = pd.DataFrame(st.session_state.stocks)
@@ -268,27 +270,44 @@ def page_diagrams():
         profit = revenue - invested
         loss = invested - revenue if invested > revenue else 0
         profit = profit if profit > 0 else 0
+
+        pie_df = pd.DataFrame({
+            'Category': ['Profit', 'Loss'],
+            'Amount': [profit, loss]
+        })
+
+        pie = alt.Chart(pie_df).mark_arc(innerRadius=50).encode(
+            theta=alt.Theta(field="Amount", type="quantitative"),
+            color=alt.Color(field="Category", type="nominal",
+                            scale=alt.Scale(domain=["Profit", "Loss"],
+                                            range=["#2ca02c", "#d62728"])),
+            tooltip=[alt.Tooltip('Category'), alt.Tooltip('Amount', format=',')]
+        ).properties(width=400, height=400)
+
+        label = pie.mark_text(radius=90, size=14).encode(
+            text='Category'
+        )
+
+        st.altair_chart(pie + label, use_container_width=False)
+
         st.write(f"Total Revenue: ₹{revenue:,.0f}")
         st.write(f"Total Investment: ₹{invested:,.0f}")
-        st.write(f"Profit: ₹{profit:,.0f}")
-        st.write(f"Loss: ₹{loss:,.0f}")
-        pie_data = pd.DataFrame({
-            'Amount': [profit, loss],
-            'Category': ['Profit', 'Loss']
-        }).set_index('Category')
-        fig, ax = plt.subplots()
-        pie_data.plot.pie(y='Amount', autopct='%1.1f%%', ax=ax)
-        ax.set_ylabel('')
-        st.pyplot(fig)
+        st.write(f"Net Profit: ₹{profit:,.0f}")
+        st.write(f"Loss (if any): ₹{loss:,.0f}")
 
-    # Doctor total sales bar chart
+    # Doctor Total Sales bar chart
     st.subheader("Doctor Total Sales")
     if st.session_state.doctors:
         df_doctors = pd.DataFrame(st.session_state.doctors)
         df_sales = df_doctors.groupby('name')['total_sales'].sum().reset_index()
         if not df_sales.empty:
             df_sales = df_sales.sort_values('total_sales', ascending=True)
-            st.bar_chart(df_sales.set_index('name'))
+            chart_doctors = alt.Chart(df_sales).mark_bar(color="#ff7f0e").encode(
+                x=alt.X('total_sales', title='Total Sales'),
+                y=alt.Y('name', sort='-x', title='Doctor'),
+                tooltip=['name', 'total_sales']
+            ).properties(width=700, height=400)
+            st.altair_chart(chart_doctors, use_container_width=True)
 
 def main():
     if st.session_state.logged_in:
