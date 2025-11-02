@@ -20,7 +20,7 @@ def load_json(file):
     try:
         with open(file, "r") as f:
             return json.load(f)
-    except:
+    except Exception:
         return []
 
 def save_json(data, file):
@@ -160,18 +160,19 @@ def page_doctor():
     if uploaded:
         try:
             df = pd.read_excel(uploaded, engine="openpyxl")
-            required = {'name', 'clinic', 'phone', 'total_sales', 'subscribed_products', 'total_units_bought'}
-            if not required.issubset(df.columns.str.lower()):
-                st.error(f"Need columns: {required}")
-            else:
-                df.columns = df.columns.str.lower()
+            required = {'name', 'clinic', 'phone', 'total_sales', 'subscribed_products'}
+            # Accept file even if total_units_bought not present
+            df.columns = df.columns.str.lower()
+            if 'subscribed_products' in df.columns:
                 df['subscribed_products'] = df['subscribed_products'].apply(
                     lambda x: [p.strip() for p in x.split(",")] if isinstance(x, str) else []
                 )
-                st.session_state.doctors.extend(df.to_dict(orient='records'))
-                save_all()
-                st.success(f"Added {len(df)} doctors")
-                st.experimental_rerun()
+            if 'total_units_bought' not in df.columns:
+                df['total_units_bought'] = 0
+            st.session_state.doctors.extend(df.to_dict(orient='records'))
+            save_all()
+            st.success(f"Added {len(df)} doctors")
+            st.experimental_rerun()
         except Exception as e:
             st.error(str(e))
 
@@ -186,7 +187,6 @@ def page_doctor():
         submit = st.form_submit_button("Add")
         if submit:
             products_list = [p.strip() for p in subscribed_products.split(",") if p.strip()] if subscribed_products else []
-
             st.session_state.doctors.append({
                 "name": name,
                 "clinic": clinic,
@@ -201,6 +201,9 @@ def page_doctor():
 
     if st.session_state.doctors:
         df_doctors = pd.DataFrame(st.session_state.doctors)
+        # Ensure column always present and filled for all records
+        if 'total_units_bought' not in df_doctors.columns:
+            df_doctors['total_units_bought'] = 0
         if 'subscribed_products' in df_doctors.columns:
             df_doctors['subscribed_products'] = df_doctors['subscribed_products'].apply(
                 lambda x: ", ".join(x) if isinstance(x, list) else "")
@@ -237,6 +240,8 @@ def page_diagrams():
 
     if st.session_state.doctors:
         df_doctors = pd.DataFrame(st.session_state.doctors)
+        if 'total_sales' not in df_doctors.columns:
+            df_doctors['total_sales'] = 0
         df_doctors['total_sales'] = pd.to_numeric(df_doctors['total_sales'], errors='coerce').fillna(0)
         sales_grouped = df_doctors.groupby('name')['total_sales'].sum().reset_index()
         st.subheader("Doctor-wise Total Sales Table")
